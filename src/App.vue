@@ -43,22 +43,44 @@
 
     <!-- 模型列表 -->
     <div class="model-list">
-      <h3>已加载模型 ({{ models.length }})</h3>
+      <h3>已加载模型 ({{ rootModelsCount }})</h3>
+      <div class="visibility-info">
+        可见: {{ visibleModelsCount }} / {{ allModelsCount }}
+      </div>
       <ul>
         <li 
-          v-for="model in models" 
+          v-for="model in allModelsFlattened" 
           :key="model.id"
           @click="focusOnModel(model)"
-          :class="{ active: selectedModel?.id === model.id, hidden: !model.visible }"
+          :class="{ 
+            active: selectedModel?.id === model.id, 
+            hidden: !model.visible,
+            'child-node': model.nodeType !== 'root'
+          }"
+          :style="{ paddingLeft: (model.depth * 20 + 15) + 'px' }"
         >
+          <span class="node-indicator">
+            <span v-if="model.nodeType !== 'root'" class="node-type-icon">
+              {{ getNodeTypeIcon(model.nodeType) }}
+            </span>
+          </span>
           <span class="model-name">{{ model.name }}</span>
           <div class="model-actions">
             <button 
+              v-if="model.nodeType === 'root'" 
               class="visibility-btn" 
               @click.stop="toggleModelVisibility(model)"
-              :title="model.visible ? '隐藏模型' : '显示模型'"
+              :title="model.visible ? '隐藏模型及子节点' : '显示模型及子节点'"
             >
               {{ model.visible ? '👁️' : '👁️‍🗨️' }}
+            </button>
+            <button 
+              v-else
+              class="node-visibility-btn" 
+              @click.stop="toggleNodeVisibility(model)"
+              :title="model.visible ? '隐藏节点' : '显示节点'"
+            >
+              {{ model.visible ? '🔘' : '⚪' }}
             </button>
             <button class="remove-btn" @click.stop="removeModel(model.id)">×</button>
           </div>
@@ -87,6 +109,15 @@ const status = ref('准备就绪')
 // 计算属性
 const hasModels = computed(() => models.value.length > 0)
 const visibleModelsCount = computed(() => models.value.filter(m => m.visible).length)
+const allModelsFlattened = computed(() => {
+  if (!threeScene) return []
+  return threeScene.getAllModelsFlattened()
+})
+const rootModelsCount = computed(() => {
+  if (!threeScene) return 0
+  return threeScene.getRootModels().length
+})
+const allModelsCount = computed(() => allModelsFlattened.value.length)
 
 // Three.js 场景实例
 let threeScene: ThreeScene | null = null
@@ -156,7 +187,15 @@ const loadFiles = async (files: File[]) => {
     const loadedModels = await threeScene?.loadModels(Array.from(files))
     
     if (loadedModels && loadedModels.length > 0) {
+      // 添加根模型到数组
       models.value.push(...loadedModels)
+      
+      // 添加所有子节点到数组
+      loadedModels.forEach(rootModel => {
+        const allChildren = getAllChildren(rootModel)
+        models.value.push(...allChildren)
+      })
+      
       status.value = `成功加载 ${loadedModels.length} 个模型`
     } else {
       status.value = '没有成功加载任何模型'
@@ -168,6 +207,15 @@ const loadFiles = async (files: File[]) => {
   }
 
   setTimeout(() => status.value = '准备就绪', 2000)
+}
+
+const getAllChildren = (model: ModelInfo): ModelInfo[] => {
+  const children: ModelInfo[] = []
+  model.children.forEach(child => {
+    children.push(child)
+    children.push(...getAllChildren(child))
+  })
+  return children
 }
 
 // 控制功能
@@ -201,11 +249,21 @@ const removeModel = (modelId: string) => {
   const modelToRemove = models.value.find(m => m.id === modelId)
   if (modelToRemove) {
     threeScene?.removeModel(modelId)
-    models.value = models.value.filter(m => m.id !== modelId)
+    
+    // 如果是根模型，同时移除所有子节点
+    if (modelToRemove.nodeType === 'root') {
+      const allChildren = getAllChildren(modelToRemove)
+      const childIds = allChildren.map(child => child.id)
+      models.value = models.value.filter(m => !childIds.includes(m.id) && m.id !== modelId)
+    } else {
+      // 如果是子节点，只移除该节点
+      models.value = models.value.filter(m => m.id !== modelId)
+    }
+    
     if (selectedModel.value?.id === modelId) {
       selectedModel.value = null
     }
-    status.value = `模型 "${modelToRemove.name}" 已移除`
+    status.value = `${modelToRemove.nodeType === 'root' ? '模型' : '节点'} "${modelToRemove.name}" 已移除`
     setTimeout(() => status.value = '准备就绪', 2000)
   }
 }
@@ -231,5 +289,23 @@ const hideAllModels = () => {
   models.value.forEach(model => model.visible = false)
   status.value = '已隐藏所有模型'
   setTimeout(() => status.value = '准备就绪', 2000)
+}
+
+const getNodeTypeIcon = (nodeType: string): string => {
+  switch (nodeType) {
+    case 'mesh': return '🔳'
+    case 'group': return '📁'
+    case 'object': return '⚙️'
+    default: return '📦'
+  }
+}
+
+const toggleNodeVisibility = (model: ModelInfo) => {
+  const newVisibleState = threeScene?.toggleNodeVisibility(model.id)
+  if (newVisibleState !== null && newVisibleState !== undefined) {
+    model.visible = newVisibleState
+    status.value = `节点 "${model.name}" 已${model.visible ? '显示' : '隐藏'}`
+    setTimeout(() => status.value = '准备就绪', 2000)
+  }
 }
 </script> 

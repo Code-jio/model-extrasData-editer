@@ -1,4 +1,4 @@
-import type { Object3D, Group } from 'three'
+import type { Object3D, Group, Mesh } from 'three'
 
 export interface ModelInfo {
   id: string
@@ -11,6 +11,11 @@ export interface ModelInfo {
   }
   loadTime: number
   visible: boolean
+  // 新增：支持子节点层级结构
+  children: ModelInfo[]
+  parent?: ModelInfo
+  nodeType: 'root' | 'mesh' | 'group' | 'object'
+  depth: number
 }
 
 export interface LoaderProgress {

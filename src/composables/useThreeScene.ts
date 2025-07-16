@@ -337,8 +337,14 @@ export class ThreeScene {
               max: { x: box.max.x, y: box.max.y, z: box.max.z }
             },
             loadTime: Date.now() - startTime,
-            visible: true
+            visible: true,
+            children: [],
+            nodeType: 'root',
+            depth: 0
           }
+          
+          // 解析子节点
+          this.parseChildNodes(object, modelInfo)
           
           // 添加到场景
           this.modelGroup.add(object)
@@ -427,6 +433,57 @@ export class ThreeScene {
     })
   }
 
+  private parseChildNodes(object: THREE.Object3D, parentInfo: ModelInfo) {
+    object.children.forEach((child, index) => {
+      if (child.children.length > 0 || child instanceof THREE.Mesh) {
+        const childInfo: ModelInfo = {
+          id: `${parentInfo.id}_child_${index}_${Date.now()}`,
+          name: child.name || `${this.getNodeTypeName(child)} ${index + 1}`,
+          object: child,
+          originalSize: 0, // 子节点不计算大小
+          boundingBox: {
+            min: { x: 0, y: 0, z: 0 },
+            max: { x: 0, y: 0, z: 0 }
+          },
+          loadTime: 0,
+          visible: true,
+          children: [],
+          parent: parentInfo,
+          nodeType: this.getNodeType(child),
+          depth: parentInfo.depth + 1
+        }
+        
+        parentInfo.children.push(childInfo)
+        this.models.set(childInfo.id, childInfo)
+        
+        // 递归解析子节点的子节点
+        if (child.children.length > 0) {
+          this.parseChildNodes(child, childInfo)
+        }
+      }
+    })
+  }
+
+  private getNodeType(object: THREE.Object3D): 'mesh' | 'group' | 'object' {
+    if (object instanceof THREE.Mesh) {
+      return 'mesh'
+    } else if (object instanceof THREE.Group) {
+      return 'group'
+    } else {
+      return 'object'
+    }
+  }
+
+  private getNodeTypeName(object: THREE.Object3D): string {
+    if (object instanceof THREE.Mesh) {
+      return 'Mesh'
+    } else if (object instanceof THREE.Group) {
+      return 'Group'
+    } else {
+      return 'Object3D'
+    }
+  }
+
   private fitCameraToModels() {
     if (this.models.size === 0) return
     
@@ -509,6 +566,34 @@ export class ThreeScene {
       // 切换模型可见性
       model.visible = !model.visible
       model.object.visible = model.visible
+      
+      // 如果是根节点，同时影响所有子节点
+      if (model.nodeType === 'root') {
+        this.setChildrenVisibility(model, model.visible)
+      }
+      
+      return model.visible
+    }
+    return null
+  }
+
+  private setChildrenVisibility(parentModel: ModelInfo, visible: boolean) {
+    parentModel.children.forEach(child => {
+      child.visible = visible
+      child.object.visible = visible
+      // 递归处理子节点的子节点
+      if (child.children.length > 0) {
+        this.setChildrenVisibility(child, visible)
+      }
+    })
+  }
+
+  toggleNodeVisibility(modelId: string): boolean | null {
+    const model = this.models.get(modelId)
+    if (model) {
+      // 切换节点可见性（不影响子节点）
+      model.visible = !model.visible
+      model.object.visible = model.visible
       return model.visible
     }
     return null
@@ -528,6 +613,38 @@ export class ThreeScene {
       model.visible = false
       model.object.visible = false
     })
+  }
+
+  getAllModelsFlattened(): ModelInfo[] {
+    const allModels: ModelInfo[] = []
+    
+    this.models.forEach(model => {
+      if (model.nodeType === 'root') {
+        allModels.push(model)
+        this.addChildrenToList(model, allModels)
+      }
+    })
+    
+    return allModels
+  }
+
+  private addChildrenToList(parentModel: ModelInfo, list: ModelInfo[]) {
+    parentModel.children.forEach(child => {
+      list.push(child)
+      if (child.children.length > 0) {
+        this.addChildrenToList(child, list)
+      }
+    })
+  }
+
+  getRootModels(): ModelInfo[] {
+    const rootModels: ModelInfo[] = []
+    this.models.forEach(model => {
+      if (model.nodeType === 'root') {
+        rootModels.push(model)
+      }
+    })
+    return rootModels
   }
 
   dispose() {
