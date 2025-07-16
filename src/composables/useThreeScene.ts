@@ -120,7 +120,7 @@ export class ThreeScene {
 
   private createRenderer() {
     this.renderer = new THREE.WebGLRenderer({ 
-      antialias: false, // 关闭抗锯齿以提升性能
+      antialias: true,
       alpha: true
     })
     
