@@ -39,7 +39,7 @@ export class ThreeScene {
   
   // 配置
   private sceneConfig: SceneConfig = {
-    enableShadows: true,
+    enableShadows: false, // 关闭阴影以大幅提升性能
     backgroundColor: 0x1a1a1a,
     fogEnabled: true,
     fogColor: 0x1a1a1a,
@@ -57,12 +57,12 @@ export class ThreeScene {
   private lightConfig: LightConfig = {
     directionalLight: {
       color: 0xffffff,
-      intensity: 2.0, // 进一步增强方向光
+      intensity: 1.5, // 适度降低强度
       position: { x: 10, y: 10, z: 5 }
     },
     ambientLight: {
       color: 0x404040,
-      intensity: 1.0 // 显著增强环境光
+      intensity: 0.8 // 适度降低强度
     }
   }
 
@@ -120,12 +120,12 @@ export class ThreeScene {
 
   private createRenderer() {
     this.renderer = new THREE.WebGLRenderer({ 
-      antialias: true,
+      antialias: false, // 关闭抗锯齿以提升性能
       alpha: true
     })
     
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight)
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)) // 限制最大像素比
     
     if (this.sceneConfig.enableShadows) {
       this.renderer.shadowMap.enabled = true
@@ -134,7 +134,7 @@ export class ThreeScene {
     
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.8 // 增加曝光值以提升整体亮度
+    this.renderer.toneMappingExposure = 1.2 // 降低曝光值以减少计算量
     
     this.container.appendChild(this.renderer.domElement)
   }
@@ -152,17 +152,7 @@ export class ThreeScene {
       this.lightConfig.directionalLight.position.z
     )
     
-    if (this.sceneConfig.enableShadows) {
-      this.directionalLight.castShadow = true
-      this.directionalLight.shadow.mapSize.width = 2048
-      this.directionalLight.shadow.mapSize.height = 2048
-      this.directionalLight.shadow.camera.near = 0.5
-      this.directionalLight.shadow.camera.far = 500
-      this.directionalLight.shadow.camera.left = -50
-      this.directionalLight.shadow.camera.right = 50
-      this.directionalLight.shadow.camera.top = 50
-      this.directionalLight.shadow.camera.bottom = -50
-    }
+    // 移除阴影相关代码以提升性能
     
     this.scene.add(this.directionalLight)
     
@@ -178,33 +168,26 @@ export class ThreeScene {
     this.hemisphereLight = new THREE.HemisphereLight(
       0x87CEEB, // 天空颜色 (天空蓝)
       0x444444, // 地面颜色 (深灰)
-      0.8       // 强度
+      0.5       // 降低强度以提升性能
     )
     this.scene.add(this.hemisphereLight)
     
-    // 补充点光源1 - 左侧照明
-    this.pointLight1 = new THREE.PointLight(0xffffff, 1.5, 100)
-    this.pointLight1.position.set(-15, 8, 10)
-    this.scene.add(this.pointLight1)
-    
-    // 补充点光源2 - 右侧照明
-    this.pointLight2 = new THREE.PointLight(0xffffff, 1.5, 100)
-    this.pointLight2.position.set(15, 8, -10)
-    this.scene.add(this.pointLight2)
+    // 移除两个点光源以大幅提升性能
   }
 
   private createControls() {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-    this.controls.enableDamping = true
+    this.controls.enableDamping = false // 关闭阻尼以减少计算
     this.controls.dampingFactor = 0.05
     this.controls.minDistance = 1
-    this.controls.maxDistance = 100
+    this.controls.maxDistance = 500 // 降低最大距离
     this.controls.autoRotate = false
     this.controls.autoRotateSpeed = 1
   }
 
   private createGrid() {
-    const gridHelper = new THREE.GridHelper(2000, 2000, 0x444444, 0x222222)
+    // 大幅减少网格尺寸和分割数以提升性能
+    const gridHelper = new THREE.GridHelper(200, 50, 0x444444, 0x222222)
     this.scene.add(gridHelper)
   }
 
@@ -213,7 +196,7 @@ export class ThreeScene {
     this.stats.dom.style.position = 'absolute'
     this.stats.dom.style.top = '0px'
     this.stats.dom.style.left = '0px'
-    this.stats.dom.style.zIndex = '100'
+    this.stats.dom.style.zIndex = '9999'
     this.container.appendChild(this.stats.dom)
   }
 
@@ -421,11 +404,12 @@ export class ThreeScene {
   }
 
   private processModel(object: THREE.Object3D) {
-    // 启用阴影
+    // 优化：仅进行必要的材质处理，移除阴影设置
     object.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        child.castShadow = true
-        child.receiveShadow = true
+        // 移除阴影设置以提升性能
+        // child.castShadow = true
+        // child.receiveShadow = true
         
         // 确保材质正确
         if (child.material) {
