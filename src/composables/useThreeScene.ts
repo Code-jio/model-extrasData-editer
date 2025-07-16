@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
+import Stats from 'stats.js'
 import type { ModelInfo, SceneConfig, CameraConfig, LightConfig } from '@/types'
 
 export class ThreeScene {
@@ -17,6 +18,9 @@ export class ThreeScene {
   private hemisphereLight!: THREE.HemisphereLight
   private pointLight1!: THREE.PointLight
   private pointLight2!: THREE.PointLight
+  
+  // 性能统计
+  private stats!: Stats
   
   // 加载器
   private gltfLoader!: GLTFLoader
@@ -72,6 +76,7 @@ export class ThreeScene {
     this.createRenderer()
     this.createLights()
     this.createControls()
+    this.createStats()
     this.setupLoaders()
     this.setupEventListeners()
     this.animate()
@@ -199,8 +204,17 @@ export class ThreeScene {
   }
 
   private createGrid() {
-    const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222)
+    const gridHelper = new THREE.GridHelper(2000, 2000, 0x444444, 0x222222)
     this.scene.add(gridHelper)
+  }
+
+  private createStats() {
+    this.stats = new Stats()
+    this.stats.dom.style.position = 'absolute'
+    this.stats.dom.style.top = '0px'
+    this.stats.dom.style.left = '0px'
+    this.stats.dom.style.zIndex = '100'
+    this.container.appendChild(this.stats.dom)
   }
 
   private setupLoaders() {
@@ -250,8 +264,12 @@ export class ThreeScene {
   private animate() {
     requestAnimationFrame(this.animate.bind(this))
     
+    this.stats.begin()
+    
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
+    
+    this.stats.end()
   }
 
   // 单个模型加载方法（推荐使用批量加载方法）
@@ -535,6 +553,11 @@ export class ThreeScene {
     
     // 清理资源映射
     this.resourceMap.clear()
+    
+    // 清理性能统计
+    if (this.stats && this.stats.dom) {
+      this.container.removeChild(this.stats.dom)
+    }
     
     this.renderer.dispose()
     this.dracoLoader.dispose()
