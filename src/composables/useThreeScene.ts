@@ -314,7 +314,8 @@ export class ThreeScene {
               min: { x: box.min.x, y: box.min.y, z: box.min.z },
               max: { x: box.max.x, y: box.max.y, z: box.max.z }
             },
-            loadTime: Date.now() - startTime
+            loadTime: Date.now() - startTime,
+            visible: true
           }
           
           // 添加到场景
@@ -479,24 +480,31 @@ export class ThreeScene {
     }
   }
 
-  showOnlyModel(modelId: string) {
-    // 隐藏所有模型
-    this.models.forEach((model, id) => {
-      model.object.visible = id === modelId
-    })
-    
-    // 聚焦到指定模型
-    this.focusOnModel(modelId)
+  toggleModelVisibility(modelId: string): boolean | null {
+    const model = this.models.get(modelId)
+    if (model) {
+      // 切换模型可见性
+      model.visible = !model.visible
+      model.object.visible = model.visible
+      return model.visible
+    }
+    return null
   }
 
   showAllModels() {
     // 显示所有模型
     this.models.forEach(model => {
+      model.visible = true
       model.object.visible = true
     })
-    
-    // 适配相机到所有模型
-    this.fitCameraToModels()
+  }
+
+  hideAllModels() {
+    // 隐藏所有模型
+    this.models.forEach(model => {
+      model.visible = false
+      model.object.visible = false
+    })
   }
 
   dispose() {

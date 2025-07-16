@@ -226,7 +226,7 @@ body {
   gap: 5px;
 }
 
-.action-btn {
+.visibility-btn {
   background: rgba(52, 152, 219, 0.8);
   border: none;
   border-radius: 4px;
@@ -241,18 +241,12 @@ body {
   transition: all 0.3s ease;
 }
 
-.action-btn:hover:not(:disabled) {
+.visibility-btn:hover {
   background: rgba(52, 152, 219, 1);
   transform: scale(1.1);
 }
 
-.action-btn:disabled {
-  background: rgba(255, 255, 255, 0.2);
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.display-mode-info {
+.visibility-info {
   background: rgba(76, 175, 80, 0.2);
   border: 1px solid rgba(76, 175, 80, 0.5);
   border-radius: 8px;
@@ -261,6 +255,16 @@ body {
   font-size: 12px;
   color: #4CAF50;
   text-align: center;
+}
+
+.model-list li.hidden {
+  opacity: 0.5;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.model-list li.hidden .model-name {
+  text-decoration: line-through;
+  opacity: 0.7;
 }
 
 .remove-btn {

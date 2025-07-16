@@ -36,32 +36,32 @@
       </div>
       <div class="control-group">
         <button @click="showDropZone" v-if="hasModels">添加更多模型</button>
-        <button @click="showAllModels" v-if="hasModels && displayMode === 'single'">显示所有模型</button>
+        <button @click="showAllModels" v-if="hasModels">显示所有模型</button>
+        <button @click="hideAllModels" v-if="hasModels">隐藏所有模型</button>
       </div>
     </div>
 
     <!-- 模型列表 -->
     <div class="model-list">
       <h3>已加载模型 ({{ models.length }})</h3>
-      <div v-if="displayMode === 'single'" class="display-mode-info">
-        当前单独显示: {{ selectedModel?.name }}
+      <div class="visibility-info">
+        可见: {{ visibleModelsCount }} / {{ models.length }}
       </div>
       <ul>
         <li 
           v-for="model in models" 
           :key="model.id"
           @click="focusOnModel(model)"
-          :class="{ active: selectedModel?.id === model.id }"
+          :class="{ active: selectedModel?.id === model.id, hidden: !model.visible }"
         >
           <span class="model-name">{{ model.name }}</span>
           <div class="model-actions">
             <button 
-              class="action-btn" 
-              @click.stop="showOnlyModel(model)"
-              :disabled="displayMode === 'single' && selectedModel?.id === model.id"
-              title="单独显示此模型"
+              class="visibility-btn" 
+              @click.stop="toggleModelVisibility(model)"
+              :title="model.visible ? '隐藏模型' : '显示模型'"
             >
-              📱
+              {{ model.visible ? '👁️' : '👁️‍🗨️' }}
             </button>
             <button class="remove-btn" @click.stop="removeModel(model.id)">×</button>
           </div>
@@ -86,10 +86,10 @@ const isDragOver = ref(false)
 const models = ref<ModelInfo[]>([])
 const selectedModel = ref<ModelInfo | null>(null)
 const status = ref('准备就绪')
-const displayMode = ref<'single' | 'all'>('all') // 新增：控制模型显示模式
 
 // 计算属性
 const hasModels = computed(() => models.value.length > 0)
+const visibleModelsCount = computed(() => models.value.filter(m => m.visible).length)
 
 // Three.js 场景实例
 let threeScene: ThreeScene | null = null
@@ -201,28 +201,38 @@ const focusOnModel = (model: ModelInfo) => {
 }
 
 const removeModel = (modelId: string) => {
-  threeScene?.removeModel(modelId)
-  models.value = models.value.filter(m => m.id !== modelId)
-  if (selectedModel.value?.id === modelId) {
-    selectedModel.value = null
+  const modelToRemove = models.value.find(m => m.id === modelId)
+  if (modelToRemove) {
+    threeScene?.removeModel(modelId)
+    models.value = models.value.filter(m => m.id !== modelId)
+    if (selectedModel.value?.id === modelId) {
+      selectedModel.value = null
+    }
+    status.value = `模型 "${modelToRemove.name}" 已移除`
+    setTimeout(() => status.value = '准备就绪', 2000)
   }
-  status.value = '模型已移除'
-  setTimeout(() => status.value = '准备就绪', 2000)
 }
 
-const showOnlyModel = (model: ModelInfo) => {
-  selectedModel.value = model
-  threeScene?.showOnlyModel(model.id)
-  displayMode.value = 'single'
-  status.value = `已单独显示: ${model.name}`
-  setTimeout(() => status.value = '准备就绪', 2000)
+const toggleModelVisibility = (model: ModelInfo) => {
+  const newVisibleState = threeScene?.toggleModelVisibility(model.id)
+  if (newVisibleState !== null && newVisibleState !== undefined) {
+    model.visible = newVisibleState
+    status.value = `模型 "${model.name}" 已${model.visible ? '显示' : '隐藏'}`
+    setTimeout(() => status.value = '准备就绪', 2000)
+  }
 }
 
 const showAllModels = () => {
-  selectedModel.value = null
-  threeScene?.showAllModels() // 显示所有模型
-  displayMode.value = 'all'
+  threeScene?.showAllModels()
+  models.value.forEach(model => model.visible = true)
   status.value = '已显示所有模型'
+  setTimeout(() => status.value = '准备就绪', 2000)
+}
+
+const hideAllModels = () => {
+  threeScene?.hideAllModels()
+  models.value.forEach(model => model.visible = false)
+  status.value = '已隐藏所有模型'
   setTimeout(() => status.value = '准备就绪', 2000)
 }
 </script> 

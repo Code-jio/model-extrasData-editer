@@ -10,6 +10,7 @@ export interface ModelInfo {
     max: { x: number; y: number; z: number }
   }
   loadTime: number
+  visible: boolean
 }
 
 export interface LoaderProgress {
