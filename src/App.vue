@@ -20,7 +20,7 @@
           ref="fileInput"
           type="file" 
           multiple 
-          accept=".gltf,.glb,.obj,.fbx"
+          accept="*"
           style="display: none;"
           @change="handleFileSelect"
         >
@@ -31,37 +31,21 @@
     <!-- 控制面板 -->
     <div class="controls">
       <div class="control-group">
-        <label>光源强度: {{ lightIntensity.toFixed(1) }}</label>
-        <input 
-          type="range" 
-          v-model.number="lightIntensity"
-          min="0" 
-          max="2" 
-          step="0.1"
-        >
-      </div>
-      <div class="control-group">
-        <label>环境光: {{ ambientLightIntensity.toFixed(1) }}</label>
-        <input 
-          type="range" 
-          v-model.number="ambientLightIntensity"
-          min="0" 
-          max="1" 
-          step="0.1"
-        >
-      </div>
-      <div class="control-group">
         <button @click="resetCamera">重置相机</button>
         <button @click="clearScene">清空场景</button>
       </div>
       <div class="control-group">
         <button @click="showDropZone" v-if="hasModels">添加更多模型</button>
+        <button @click="showAllModels" v-if="hasModels && displayMode === 'single'">显示所有模型</button>
       </div>
     </div>
 
     <!-- 模型列表 -->
     <div class="model-list">
       <h3>已加载模型 ({{ models.length }})</h3>
+      <div v-if="displayMode === 'single'" class="display-mode-info">
+        当前单独显示: {{ selectedModel?.name }}
+      </div>
       <ul>
         <li 
           v-for="model in models" 
@@ -70,7 +54,17 @@
           :class="{ active: selectedModel?.id === model.id }"
         >
           <span class="model-name">{{ model.name }}</span>
-          <button class="remove-btn" @click.stop="removeModel(model.id)">×</button>
+          <div class="model-actions">
+            <button 
+              class="action-btn" 
+              @click.stop="showOnlyModel(model)"
+              :disabled="displayMode === 'single' && selectedModel?.id === model.id"
+              title="单独显示此模型"
+            >
+              📱
+            </button>
+            <button class="remove-btn" @click.stop="removeModel(model.id)">×</button>
+          </div>
         </li>
       </ul>
     </div>
@@ -89,11 +83,10 @@ import type { ModelInfo } from './types'
 const sceneContainer = ref<HTMLElement>()
 const fileInput = ref<HTMLInputElement>()
 const isDragOver = ref(false)
-const lightIntensity = ref(1)
-const ambientLightIntensity = ref(0.4)
 const models = ref<ModelInfo[]>([])
 const selectedModel = ref<ModelInfo | null>(null)
 const status = ref('准备就绪')
+const displayMode = ref<'single' | 'all'>('all') // 新增：控制模型显示模式
 
 // 计算属性
 const hasModels = computed(() => models.value.length > 0)
@@ -109,14 +102,7 @@ onMounted(() => {
   }
 })
 
-// 监听器
-watch(lightIntensity, (newValue) => {
-  threeScene?.updateLightIntensity(newValue)
-})
-
-watch(ambientLightIntensity, (newValue) => {
-  threeScene?.updateAmbientLight(newValue)
-})
+// 监听器已移除，使用固定的光源设置
 
 // 拖拽处理
 const handleDragOver = (e: DragEvent) => {
@@ -154,31 +140,34 @@ const handleFileSelect = async (e: Event) => {
 
 // 加载文件
 const loadFiles = async (files: File[]) => {
-  const validFiles = files.filter(file => {
+  const modelFiles = files.filter(file => {
     const ext = file.name.toLowerCase()
     return ext.endsWith('.gltf') || ext.endsWith('.glb') || 
            ext.endsWith('.obj') || ext.endsWith('.fbx')
   })
 
-  if (validFiles.length === 0) {
+  if (modelFiles.length === 0) {
     status.value = '请选择有效的3D模型文件'
     setTimeout(() => status.value = '准备就绪', 3000)
     return
   }
 
-  for (const file of validFiles) {
-    try {
-      status.value = `正在加载 ${file.name}...`
-      
-      const modelInfo = await threeScene?.loadModel(file)
-      if (modelInfo) {
-        models.value.push(modelInfo)
-        status.value = `成功加载 ${file.name}`
-      }
-    } catch (error) {
-      console.error('加载模型失败:', error)
-      status.value = `加载 ${file.name} 失败`
+  try {
+    status.value = `正在批量加载 ${modelFiles.length} 个模型文件...`
+    
+    // 使用新的批量加载方法
+    const loadedModels = await threeScene?.loadModels(Array.from(files))
+    
+    if (loadedModels && loadedModels.length > 0) {
+      models.value.push(...loadedModels)
+      status.value = `成功加载 ${loadedModels.length} 个模型`
+    } else {
+      status.value = '没有成功加载任何模型'
     }
+    
+  } catch (error) {
+    console.error('批量加载模型失败:', error)
+    status.value = '批量加载失败，请检查文件格式'
   }
 
   setTimeout(() => status.value = '准备就绪', 2000)
@@ -218,6 +207,22 @@ const removeModel = (modelId: string) => {
     selectedModel.value = null
   }
   status.value = '模型已移除'
+  setTimeout(() => status.value = '准备就绪', 2000)
+}
+
+const showOnlyModel = (model: ModelInfo) => {
+  selectedModel.value = model
+  threeScene?.showOnlyModel(model.id)
+  displayMode.value = 'single'
+  status.value = `已单独显示: ${model.name}`
+  setTimeout(() => status.value = '准备就绪', 2000)
+}
+
+const showAllModels = () => {
+  selectedModel.value = null
+  threeScene?.showAllModels() // 显示所有模型
+  displayMode.value = 'all'
+  status.value = '已显示所有模型'
   setTimeout(() => status.value = '准备就绪', 2000)
 }
 </script> 

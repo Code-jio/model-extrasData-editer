@@ -220,6 +220,49 @@ body {
   margin-right: 10px;
 }
 
+.model-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.action-btn {
+  background: rgba(52, 152, 219, 0.8);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  width: 24px;
+  height: 20px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.action-btn:hover:not(:disabled) {
+  background: rgba(52, 152, 219, 1);
+  transform: scale(1.1);
+}
+
+.action-btn:disabled {
+  background: rgba(255, 255, 255, 0.2);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.display-mode-info {
+  background: rgba(76, 175, 80, 0.2);
+  border: 1px solid rgba(76, 175, 80, 0.5);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 15px;
+  font-size: 12px;
+  color: #4CAF50;
+  text-align: center;
+}
+
 .remove-btn {
   background: rgba(255, 69, 58, 0.8);
   border: none;
