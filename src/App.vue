@@ -44,9 +44,6 @@
     <!-- 模型列表 -->
     <div class="model-list">
       <h3>已加载模型 ({{ models.length }})</h3>
-      <div class="visibility-info">
-        可见: {{ visibleModelsCount }} / {{ models.length }}
-      </div>
       <ul>
         <li 
           v-for="model in models" 

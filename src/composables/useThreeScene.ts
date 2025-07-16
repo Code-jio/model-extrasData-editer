@@ -14,6 +14,9 @@ export class ThreeScene {
   private controls!: OrbitControls
   private directionalLight!: THREE.DirectionalLight
   private ambientLight!: THREE.AmbientLight
+  private hemisphereLight!: THREE.HemisphereLight
+  private pointLight1!: THREE.PointLight
+  private pointLight2!: THREE.PointLight
   
   // 加载器
   private gltfLoader!: GLTFLoader
@@ -50,12 +53,12 @@ export class ThreeScene {
   private lightConfig: LightConfig = {
     directionalLight: {
       color: 0xffffff,
-      intensity: 1.2, // 增强方向光
+      intensity: 2.0, // 进一步增强方向光
       position: { x: 10, y: 10, z: 5 }
     },
     ambientLight: {
       color: 0x404040,
-      intensity: 0.6 // 增强环境光
+      intensity: 1.0 // 显著增强环境光
     }
   }
 
@@ -126,7 +129,7 @@ export class ThreeScene {
     
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1
+    this.renderer.toneMappingExposure = 1.8 // 增加曝光值以提升整体亮度
     
     this.container.appendChild(this.renderer.domElement)
   }
@@ -165,6 +168,24 @@ export class ThreeScene {
     )
     
     this.scene.add(this.ambientLight)
+    
+    // 半球光 - 提供天空和地面的渐变光照
+    this.hemisphereLight = new THREE.HemisphereLight(
+      0x87CEEB, // 天空颜色 (天空蓝)
+      0x444444, // 地面颜色 (深灰)
+      0.8       // 强度
+    )
+    this.scene.add(this.hemisphereLight)
+    
+    // 补充点光源1 - 左侧照明
+    this.pointLight1 = new THREE.PointLight(0xffffff, 1.5, 100)
+    this.pointLight1.position.set(-15, 8, 10)
+    this.scene.add(this.pointLight1)
+    
+    // 补充点光源2 - 右侧照明
+    this.pointLight2 = new THREE.PointLight(0xffffff, 1.5, 100)
+    this.pointLight2.position.set(15, 8, -10)
+    this.scene.add(this.pointLight2)
   }
 
   private createControls() {
