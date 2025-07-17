@@ -536,9 +536,37 @@ export class ThreeScene {
   removeModel(modelId: string) {
     const model = this.models.get(modelId)
     if (model) {
-      this.modelGroup.remove(model.object)
-      this.models.delete(modelId)
+      // 如果是根节点，需要递归移除所有子节点
+      if (model.nodeType === 'root') {
+        this.removeModelAndChildren(model)
+      } else {
+        // 如果是子节点，需要从其父对象中移除
+        if (model.object.parent) {
+          model.object.parent.remove(model.object)
+        }
+        // 同时从models映射中删除
+        this.models.delete(modelId)
+        
+        // 从父节点的children数组中移除
+        if (model.parent) {
+          const parentModel = this.models.get(model.parent.id)
+          if (parentModel) {
+            parentModel.children = parentModel.children.filter(child => child.id !== modelId)
+          }
+        }
+      }
     }
+  }
+
+  private removeModelAndChildren(model: ModelInfo) {
+    // 递归移除所有子节点
+    model.children.forEach(child => {
+      this.removeModelAndChildren(child)
+    })
+    
+    // 移除当前节点
+    this.modelGroup.remove(model.object)
+    this.models.delete(model.id)
   }
 
   focusOnModel(modelId: string) {
@@ -591,12 +619,31 @@ export class ThreeScene {
   toggleNodeVisibility(modelId: string): boolean | null {
     const model = this.models.get(modelId)
     if (model) {
-      // 切换节点可见性（不影响子节点）
+      // 切换节点可见性
       model.visible = !model.visible
       model.object.visible = model.visible
+      
+      // 如果要显示子节点，需要确保所有父节点都是可见的
+      if (model.visible && model.parent) {
+        this.ensureParentVisibility(model.parent)
+      }
+      
       return model.visible
     }
     return null
+  }
+
+  private ensureParentVisibility(parentModel: ModelInfo) {
+    // 递归确保所有父节点都是可见的
+    if (!parentModel.visible) {
+      parentModel.visible = true
+      parentModel.object.visible = true
+      
+      // 继续向上检查
+      if (parentModel.parent) {
+        this.ensureParentVisibility(parentModel.parent)
+      }
+    }
   }
 
   showAllModels() {
