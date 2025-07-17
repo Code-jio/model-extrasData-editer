@@ -26,6 +26,17 @@ export class ThreeScene {
   private mouse = new THREE.Vector2()
   private selectedObject: THREE.Object3D | null = null
   
+  // 相机动画
+  private cameraAnimation = {
+    isAnimating: false,
+    startTime: 0,
+    duration: 1000, // 动画时长(毫秒)
+    startPosition: new THREE.Vector3(),
+    targetPosition: new THREE.Vector3(),
+    startTarget: new THREE.Vector3(),
+    targetTarget: new THREE.Vector3()
+  }
+  
   // 性能统计
   private stats!: Stats
   
@@ -330,11 +341,24 @@ export class ThreeScene {
     this.transformControls.attach(object)
     this.transformControls.visible = true
     
-    // 更新相机焦点到选中对象
-    const box = new THREE.Box3().setFromObject(object)
-    const center = box.getCenter(new THREE.Vector3())
-    this.controls.target.copy(center)
-    this.controls.update()
+    // // 计算对象的边界和最佳观察位置
+    // const box = new THREE.Box3().setFromObject(object)
+    // const center = box.getCenter(new THREE.Vector3())
+    // const size = box.getSize(new THREE.Vector3())
+    // const maxSize = Math.max(size.x, size.y, size.z)
+    
+    // // 计算合适的观察距离
+    // const distance = Math.max(maxSize * 2, 3) // 至少3个单位的距离
+    
+    // // 计算目标相机位置 - 相对于对象中心的偏移
+    // const offset = new THREE.Vector3()
+    // offset.copy(this.camera.position).sub(this.controls.target).normalize()
+    
+    // const targetPosition = new THREE.Vector3()
+    // targetPosition.copy(center).add(offset.multiplyScalar(distance))
+    
+    // // 使用平滑动画移动相机到对象
+    // this.animateCameraTo(targetPosition, center, 700) // 0.7秒动画
     
     console.log('选中对象:', object.name || '未命名对象', object)
   }
@@ -344,10 +368,64 @@ export class ThreeScene {
     
     this.stats.begin()
     
+    // 更新相机动画
+    this.updateCameraAnimation()
+    
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
     
     this.stats.end()
+  }
+
+  private updateCameraAnimation() {
+    if (!this.cameraAnimation.isAnimating) return
+    
+    const currentTime = Date.now()
+    const elapsed = currentTime - this.cameraAnimation.startTime
+    const progress = Math.min(elapsed / this.cameraAnimation.duration, 1)
+    
+    // 使用easeInOutCubic缓动函数
+    const easedProgress = this.easeInOutCubic(progress)
+    
+    // 插值相机位置
+    this.camera.position.lerpVectors(
+      this.cameraAnimation.startPosition,
+      this.cameraAnimation.targetPosition,
+      easedProgress
+    )
+    
+    // 插值控制器目标
+    this.controls.target.lerpVectors(
+      this.cameraAnimation.startTarget,
+      this.cameraAnimation.targetTarget,
+      easedProgress
+    )
+    
+    // 动画完成
+    if (progress >= 1) {
+      this.cameraAnimation.isAnimating = false
+      this.camera.position.copy(this.cameraAnimation.targetPosition)
+      this.controls.target.copy(this.cameraAnimation.targetTarget)
+    }
+  }
+
+  private easeInOutCubic(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+  }
+
+  private animateCameraTo(targetPosition: THREE.Vector3, targetLookAt: THREE.Vector3, duration = 1000) {
+    // 保存当前状态
+    this.cameraAnimation.startPosition.copy(this.camera.position)
+    this.cameraAnimation.startTarget.copy(this.controls.target)
+    
+    // 设置目标状态
+    this.cameraAnimation.targetPosition.copy(targetPosition)
+    this.cameraAnimation.targetTarget.copy(targetLookAt)
+    
+    // 开始动画
+    this.cameraAnimation.startTime = Date.now()
+    this.cameraAnimation.duration = duration
+    this.cameraAnimation.isAnimating = true
   }
 
   // 单个模型加载方法（推荐使用批量加载方法）
@@ -593,13 +671,14 @@ export class ThreeScene {
     const maxSize = Math.max(size.x, size.y, size.z)
     const distance = maxSize / (2 * Math.tan(Math.PI * this.camera.fov / 360))
     
-    this.camera.position.copy(center)
-    this.camera.position.y += distance * 0.5
-    this.camera.position.z += distance * 1.5
-    this.camera.lookAt(center)
+    // 计算目标相机位置
+    const targetPosition = new THREE.Vector3()
+    targetPosition.copy(center)
+    targetPosition.y += distance * 0.5
+    targetPosition.z += distance * 1.5
     
-    this.controls.target.copy(center)
-    this.controls.update()
+    // 使用平滑动画移动相机
+    this.animateCameraTo(targetPosition, center, 1200) // 1.2秒动画，稍长一些因为是全场景适配
   }
 
   // 控制方法
@@ -612,13 +691,15 @@ export class ThreeScene {
   }
 
   resetCamera() {
-    this.camera.position.set(
+    const targetPosition = new THREE.Vector3(
       this.cameraConfig.position.x,
       this.cameraConfig.position.y,
       this.cameraConfig.position.z
     )
-    this.controls.target.set(0, 0, 0)
-    this.controls.update()
+    const targetLookAt = new THREE.Vector3(0, 0, 0)
+    
+    // 使用平滑动画重置相机
+    this.animateCameraTo(targetPosition, targetLookAt, 600) // 0.6秒动画
   }
 
   clearModels() {
@@ -673,13 +754,14 @@ export class ThreeScene {
       const maxSize = Math.max(size.x, size.y, size.z)
       const distance = maxSize / (2 * Math.tan(Math.PI * this.camera.fov / 360))
       
-      this.camera.position.copy(center)
-      this.camera.position.y += distance * 0.5
-      this.camera.position.z += distance * 1.5
-      this.camera.lookAt(center)
+      // 计算目标相机位置
+      const targetPosition = new THREE.Vector3()
+      targetPosition.copy(center)
+      targetPosition.y += distance * 0.5
+      targetPosition.z += distance * 1.5
       
-      this.controls.target.copy(center)
-      this.controls.update()
+      // 使用平滑动画移动相机
+      this.animateCameraTo(targetPosition, center, 800) // 0.8秒动画
       
       // 将TransformControls附加到选中的模型
       this.attachTransformControls(modelId)
@@ -833,6 +915,56 @@ export class ThreeScene {
     }
   }
 
+  // userData 相关方法
+  getSelectedObjectUserData(): Record<string, any> | null {
+    if (!this.selectedObject) return null
+    return this.selectedObject.userData || {}
+  }
+
+  setSelectedObjectUserData(userData: Record<string, any>): boolean {
+    if (!this.selectedObject) return false
+    this.selectedObject.userData = { ...userData }
+    return true
+  }
+
+  updateSelectedObjectUserData(key: string, value: any): boolean {
+    if (!this.selectedObject) return false
+    if (!this.selectedObject.userData) {
+      this.selectedObject.userData = {}
+    }
+    this.selectedObject.userData[key] = value
+    return true
+  }
+
+  removeSelectedObjectUserData(key: string): boolean {
+    if (!this.selectedObject || !this.selectedObject.userData) return false
+    delete this.selectedObject.userData[key]
+    return true
+  }
+
+  clearSelectedObjectUserData(): boolean {
+    if (!this.selectedObject) return false
+    this.selectedObject.userData = {}
+    return true
+  }
+
+  // 相机动画控制方法
+  isCameraAnimating(): boolean {
+    return this.cameraAnimation.isAnimating
+  }
+
+  stopCameraAnimation() {
+    this.cameraAnimation.isAnimating = false
+  }
+
+  setCameraAnimationDuration(duration: number) {
+    this.cameraAnimation.duration = duration
+  }
+
+  animateCameraToPosition(position: THREE.Vector3, lookAt: THREE.Vector3, duration?: number) {
+    this.animateCameraTo(position, lookAt, duration)
+  }
+
   private isObjectInModel(target: THREE.Object3D, modelRoot: THREE.Object3D): boolean {
     if (target === modelRoot) return true
     
@@ -852,6 +984,9 @@ export class ThreeScene {
     
     // 清理资源映射
     this.resourceMap.clear()
+    
+    // 停止相机动画
+    this.stopCameraAnimation()
     
     // 清理TransformControls
     if (this.transformControls) {
