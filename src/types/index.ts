@@ -16,6 +16,7 @@ export interface ModelInfo {
   parent?: ModelInfo
   nodeType: 'root' | 'mesh' | 'group' | 'object'
   depth: number
+  perfInfo?: { vertices: number; edges: number; faces: number }
 }
 
 export interface LoaderProgress {

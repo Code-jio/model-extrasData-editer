@@ -45,7 +45,11 @@
     />
 
     <!-- 状态信息 -->
-    <StatusBar :status="status" />
+    <StatusBar 
+      :status="status" 
+      :selected-perf-info="selectedPerfInfo" 
+      :global-perf-info="globalPerfInfo" 
+    />
   </div>
 </template>
 
@@ -68,6 +72,17 @@ const transformMode = ref<'translate' | 'rotate' | 'scale'>('translate')
 const selectedObjectInfo = ref<{ name: string, type: string, modelId?: string } | null>(null)
 const selectedUserData = ref<Record<string, any>>({})
 const showUserDataPanel = ref(false)
+
+// 性能信息（点/线/面数量）
+const selectedPerfInfo = ref<{ vertices: number; edges: number; faces: number } | null>(null)
+
+const globalPerfInfo = computed(() => {
+  modelUpdateTrigger.value // 依赖模型更新触发重新计算
+  if (!threeScene) {
+    return { vertices: 0, edges: 0, faces: 0 }
+  }
+  return threeScene.getSceneGeometryInfo()
+})
 
 // 计算属性
 const hasModels = computed(() => {
@@ -172,6 +187,7 @@ const resetCamera = () => {
 const clearScene = () => {
   threeScene?.clearModels()
   selectedModel.value = null
+  selectedPerfInfo.value = null
   status.value = '场景已清空'
   modelUpdateTrigger.value++
   setTimeout(() => status.value = '准备就绪', 2000)
@@ -193,6 +209,8 @@ const showDropZone = () => {
 const focusOnModel = (model: ModelInfo) => {
   selectedModel.value = model
   threeScene?.focusOnModel(model.id)
+  // (优化) 更新性能信息 - 直接从缓存读取
+  selectedPerfInfo.value = model.perfInfo || null
   status.value = `聚焦到 ${model.name}`
   setTimeout(() => status.value = '准备就绪', 2000)
 }

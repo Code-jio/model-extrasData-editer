@@ -1,10 +1,26 @@
 <template>
-  <div class="status">{{ status }}</div>
+  <div class="status">
+    <div class="status-message">{{ status }}</div>
+    <div 
+      v-if="selectedPerfInfo" 
+      class="perf-info"
+    >
+      当前选择 - 顶点: {{ selectedPerfInfo.vertices }} | 边: {{ selectedPerfInfo.edges }} | 面: {{ selectedPerfInfo.faces }}
+    </div>
+    <div 
+      v-if="globalPerfInfo" 
+      class="perf-info"
+    >
+      场景总计 - 顶点: {{ globalPerfInfo.vertices }} | 边: {{ globalPerfInfo.edges }} | 面: {{ globalPerfInfo.faces }}
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 defineProps<{
   status: string
+  selectedPerfInfo?: { vertices: number; edges: number; faces: number } | null
+  globalPerfInfo?: { vertices: number; edges: number; faces: number }
 }>()
 </script>
 
@@ -22,5 +38,13 @@ defineProps<{
   font-size: 12px;
   pointer-events: none;
   z-index: 1000;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.perf-info {
+  margin-top: 2px;
+  font-size: 11px;
+  opacity: 0.85;
 }
 </style> 

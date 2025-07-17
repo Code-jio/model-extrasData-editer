@@ -518,6 +518,9 @@ export class ThreeScene {
           
           // 解析子节点
           this.parseChildNodes(object, modelInfo)
+
+          // 新增：计算并缓存性能信息
+          this.calculateAndCachePerfInfo(modelInfo)
           
           // 添加到场景
           this.modelGroup.add(object)
@@ -555,6 +558,60 @@ export class ThreeScene {
         console.log('已清理所有blob URLs和资源映射')
       }, 5000) // 5秒延迟，给足够时间加载资源
     }
+  }
+
+  // ===== 新增：性能信息计算与缓存方法 =====
+  /**
+   * 计算并缓存模型及其所有子节点的性能信息（点/线/面）
+   * 采用后序遍历，确保每个节点的统计信息包含其所有子节点
+   * @param modelInfo 目标模型信息节点
+   * @returns 当前节点及其所有子节点的性能信息总和
+   */
+  private calculateAndCachePerfInfo(modelInfo: ModelInfo): { vertices: number; edges: number; faces: number } {
+    // 1. 计算当前节点自身的性能数据
+    const ownPerf = this._calculateObjectPerf(modelInfo.object)
+
+    // 2. 递归调用子节点并累加其性能数据
+    modelInfo.children.forEach(childInfo => {
+      const childTotalPerf = this.calculateAndCachePerfInfo(childInfo)
+      ownPerf.vertices += childTotalPerf.vertices
+      ownPerf.edges += childTotalPerf.edges
+      ownPerf.faces += childTotalPerf.faces
+    })
+
+    // 3. 将最终结果缓存到当前节点
+    modelInfo.perfInfo = ownPerf
+
+    // 4. 返回总和，供父节点使用
+    return ownPerf
+  }
+
+  /**
+   * (内部辅助方法) 计算单个对象的性能数据（非递归）
+   * @param object 目标3D对象
+   */
+  private _calculateObjectPerf(object: THREE.Object3D): { vertices: number; edges: number; faces: number } {
+    const result = { vertices: 0, edges: 0, faces: 0 }
+    if (object instanceof THREE.Mesh) {
+      const geometry = object.geometry
+      if (geometry) {
+        const positionAttr = geometry.attributes.position
+        if (positionAttr) {
+          result.vertices = positionAttr.count
+        }
+
+        const indexCount = geometry.index ? geometry.index.count : positionAttr ? positionAttr.count : 0
+        result.faces = Math.floor(indexCount / 3)
+
+        // EdgesGeometry 计算相对耗时，这是缓存的必要性所在
+        const edgesGeometry = new THREE.EdgesGeometry(geometry)
+        if (edgesGeometry.attributes.position) {
+          result.edges = Math.floor(edgesGeometry.attributes.position.count / 2)
+        }
+        edgesGeometry.dispose()
+      }
+    }
+    return result
   }
 
   private loadGLTF(url: string): Promise<any> {
@@ -975,6 +1032,23 @@ export class ThreeScene {
     }
     
     return false
+  }
+
+  // ===== 新增：几何信息统计方法 =====
+  /**
+   * (优化) 计算当前场景（所有模型）的顶点、边和面数量
+   * 该方法现在从缓存中读取数据，性能极高
+   */
+  getSceneGeometryInfo(): { vertices: number; edges: number; faces: number } {
+    const total = { vertices: 0, edges: 0, faces: 0 }
+    this.getRootModels().forEach(model => {
+      if (model.perfInfo) {
+        total.vertices += model.perfInfo.vertices
+        total.edges += model.perfInfo.edges
+        total.faces += model.perfInfo.faces
+      }
+    })
+    return total
   }
 
   dispose() {
