@@ -30,14 +30,96 @@
 
     <!-- 控制面板 -->
     <div class="controls">
-      <div class="control-group">
-        <button @click="resetCamera">重置相机</button>
-        <button @click="clearScene">清空场景</button>
+      <!-- 选中对象信息 -->
+      <div class="selected-info" v-if="selectedObjectInfo">
+        <div class="info-header">
+          <span class="info-icon">🎯</span>
+          <span class="info-title">选中对象</span>
+        </div>
+        <div class="info-content">
+          <div class="object-name">{{ selectedObjectInfo.name }}</div>
+          <div class="object-type">{{ selectedObjectInfo.type }}</div>
+        </div>
       </div>
-      <div class="control-group">
-        <button @click="showDropZone" v-if="hasModels">添加更多模型</button>
-        <button @click="showAllModels" v-if="hasModels">显示所有模型</button>
-        <button @click="hideAllModels" v-if="hasModels">隐藏所有模型</button>
+
+      <!-- 变换控制 -->
+      <div class="transform-section" v-if="selectedModel || selectedObjectInfo">
+        <div class="section-header">
+          <span class="section-icon">🛠️</span>
+          <span class="section-title">变换工具</span>
+        </div>
+        <div class="transform-modes">
+          <button 
+            @click="setTransformMode('translate')"
+            :class="{ active: transformMode === 'translate' }"
+            class="mode-btn translate"
+            title="移动模式"
+          >
+            <span class="mode-icon">📐</span>
+            <span class="mode-text">移动</span>
+          </button>
+          <button 
+            @click="setTransformMode('rotate')"
+            :class="{ active: transformMode === 'rotate' }"
+            class="mode-btn rotate"
+            title="旋转模式"
+          >
+            <span class="mode-icon">🔄</span>
+            <span class="mode-text">旋转</span>
+          </button>
+          <button 
+            @click="setTransformMode('scale')"
+            :class="{ active: transformMode === 'scale' }"
+            class="mode-btn scale"
+            title="缩放模式"
+          >
+            <span class="mode-icon">🔍</span>
+            <span class="mode-text">缩放</span>
+          </button>
+        </div>
+        <button @click="hideTransformControls" class="hide-controls-btn">
+          <span>❌</span> 隐藏控制器
+        </button>
+      </div>
+
+      <!-- 场景控制 -->
+      <div class="scene-section">
+        <div class="section-header">
+          <span class="section-icon">🎬</span>
+          <span class="section-title">场景控制</span>
+        </div>
+        <div class="scene-controls">
+          <button @click="resetCamera" class="scene-btn" title="重置相机位置">
+            <span class="btn-icon">📷</span>
+            <span class="btn-text">重置相机</span>
+          </button>
+          <button @click="clearScene" class="scene-btn danger" title="清空所有模型">
+            <span class="btn-icon">🗑️</span>
+            <span class="btn-text">清空场景</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 模型控制 -->
+      <div class="model-section" v-if="hasModels">
+        <div class="section-header">
+          <span class="section-icon">📦</span>
+          <span class="section-title">模型控制</span>
+        </div>
+        <div class="model-controls">
+          <button @click="showDropZone" class="model-btn" title="添加更多3D模型">
+            <span class="btn-icon">➕</span>
+            <span class="btn-text">添加模型</span>
+          </button>
+          <button @click="showAllModels" class="model-btn" title="显示所有模型">
+            <span class="btn-icon">👁️</span>
+            <span class="btn-text">全部显示</span>
+          </button>
+          <button @click="hideAllModels" class="model-btn" title="隐藏所有模型">
+            <span class="btn-icon">🙈</span>
+            <span class="btn-text">全部隐藏</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -198,6 +280,10 @@ const status = ref('准备就绪')
 const modelUpdateTrigger = ref(0)
 // 添加展开节点的状态管理
 const expandedNodes = ref<Set<string>>(new Set())
+// 添加变换控制模式
+const transformMode = ref<'translate' | 'rotate' | 'scale'>('translate')
+// 添加选中对象信息
+const selectedObjectInfo = ref<{ name: string, type: string, modelId?: string } | null>(null)
 
 // 计算属性
 const hasModels = computed(() => {
@@ -236,6 +322,13 @@ onMounted(() => {
   if (sceneContainer.value) {
     threeScene = new ThreeScene(sceneContainer.value)
     threeScene.init()
+    
+    // 定时检查选中对象信息
+    setInterval(() => {
+      if (threeScene) {
+        selectedObjectInfo.value = threeScene.getSelectedObjectInfo()
+      }
+    }, 100) // 每100ms检查一次
   }
 })
 
@@ -417,6 +510,21 @@ const isNodeExpanded = (nodeId: string): boolean => {
 const hasChildren = (model: ModelInfo): boolean => {
   return model.children && model.children.length > 0
 }
+
+// TransformControls 相关方法
+const setTransformMode = (mode: 'translate' | 'rotate' | 'scale') => {
+  transformMode.value = mode
+  if (threeScene) {
+    threeScene.setTransformMode(mode)
+  }
+}
+
+const hideTransformControls = () => {
+  if (threeScene) {
+    threeScene.detachTransformControls()
+  }
+  selectedObjectInfo.value = null
+}
 </script> 
 
 <style scoped>
@@ -590,5 +698,360 @@ const hasChildren = (model: ModelInfo): boolean => {
   font-size: 12px;
   color: #aaa;
   margin-bottom: 10px;
+}
+
+/* 控制面板样式 */
+.controls {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.9);
+  padding: 15px;
+  border-radius: 10px;
+  color: white;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 260px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+  animation: slideInLeft 0.3s ease-out;
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.selected-info {
+  background: linear-gradient(135deg, #333 0%, #404040 100%);
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 122, 204, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 122, 204, 0.2);
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.info-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.info-icon {
+  font-size: 16px;
+  margin-right: 6px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.info-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #007acc;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.info-content {
+  font-size: 11px;
+  color: #ccc;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 6px;
+  border-radius: 3px;
+  border-left: 3px solid #007acc;
+}
+
+.object-name {
+  font-weight: bold;
+  color: #007acc;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.object-type {
+  font-style: italic;
+  color: #888;
+  font-size: 10px;
+}
+
+.transform-section,
+.scene-section,
+.model-section {
+  background: linear-gradient(135deg, #333 0%, #404040 100%);
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #555;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.transform-section:hover,
+.scene-section:hover,
+.model-section:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.section-icon {
+  font-size: 16px;
+  margin-right: 6px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #007acc;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.transform-modes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.mode-btn {
+  background: linear-gradient(135deg, #444 0%, #555 100%);
+  border: 1px solid #666;
+  color: white;
+  padding: 6px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.mode-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.5s;
+}
+
+.mode-btn:hover::before {
+  left: 100%;
+}
+
+.mode-btn:hover {
+  background: linear-gradient(135deg, #555 0%, #666 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.mode-btn.active {
+  background: linear-gradient(135deg, #007acc 0%, #0088dd 100%);
+  border-color: #007acc;
+  box-shadow: 0 0 10px rgba(0, 122, 204, 0.3);
+}
+
+.mode-btn.active:hover {
+  background: linear-gradient(135deg, #0066aa 0%, #0077cc 100%);
+}
+
+.mode-icon {
+  font-size: 14px;
+}
+
+.mode-text {
+  font-weight: bold;
+  text-align: center;
+}
+
+.hide-controls-btn {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%);
+  border: 1px solid #ff4444;
+  color: white;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-weight: bold;
+}
+
+.hide-controls-btn:hover {
+  background: linear-gradient(135deg, #ff4444 0%, #ff3333 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(255, 68, 68, 0.3);
+}
+
+.scene-controls,
+.model-controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.scene-btn,
+.model-btn {
+  background: linear-gradient(135deg, #444 0%, #555 100%);
+  border: 1px solid #666;
+  color: white;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  transition: all 0.3s ease;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+
+.scene-btn:hover,
+.model-btn:hover {
+  background: linear-gradient(135deg, #555 0%, #666 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.scene-btn.danger {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%);
+  border-color: #ff4444;
+}
+
+.scene-btn.danger:hover {
+  background: linear-gradient(135deg, #ff4444 0%, #ff3333 100%);
+  box-shadow: 0 4px 8px rgba(255, 68, 68, 0.3);
+}
+
+.btn-icon {
+  font-size: 12px;
+}
+
+.btn-text {
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 响应式优化 */
+@media (max-width: 1200px) {
+  .controls {
+    width: 240px;
+  }
+}
+
+@media (max-width: 768px) {
+  .controls {
+    width: 220px;
+    font-size: 10px;
+    left: 10px;
+    top: 10px;
+    gap: 10px;
+    padding: 12px;
+  }
+  
+  .model-list {
+    width: 300px;
+    right: 10px;
+    top: 10px;
+  }
+  
+  .transform-modes {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  
+  .mode-btn {
+    flex-direction: row;
+    justify-content: center;
+    padding: 8px;
+    gap: 4px;
+  }
+  
+  .scene-controls,
+  .model-controls {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .scene-btn,
+  .model-btn {
+    justify-content: center;
+    padding: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .controls {
+    position: relative;
+    width: calc(100vw - 20px);
+    left: 10px;
+    top: 10px;
+    margin-bottom: 10px;
+  }
+  
+  .model-list {
+    position: relative;
+    width: calc(100vw - 20px);
+    right: auto;
+    left: 10px;
+    top: auto;
+    margin-top: 10px;
+  }
+}
+
+/* 深色主题优化 */
+@media (prefers-color-scheme: dark) {
+  .controls {
+    background: rgba(20, 20, 20, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
 }
 </style> 

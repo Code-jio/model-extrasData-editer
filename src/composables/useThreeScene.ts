@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
@@ -13,11 +14,17 @@ export class ThreeScene {
   private camera!: THREE.PerspectiveCamera
   private renderer!: THREE.WebGLRenderer
   private controls!: OrbitControls
+  private transformControls!: TransformControls
   private directionalLight!: THREE.DirectionalLight
   private ambientLight!: THREE.AmbientLight
   private hemisphereLight!: THREE.HemisphereLight
   private pointLight1!: THREE.PointLight
   private pointLight2!: THREE.PointLight
+  
+  // 鼠标交互
+  private raycaster!: THREE.Raycaster
+  private mouse = new THREE.Vector2()
+  private selectedObject: THREE.Object3D | null = null
   
   // 性能统计
   private stats!: Stats
@@ -78,6 +85,7 @@ export class ThreeScene {
     this.createControls()
     this.createStats()
     this.setupLoaders()
+    this.setupRaycaster()
     this.setupEventListeners()
     this.animate()
   }
@@ -183,6 +191,20 @@ export class ThreeScene {
     this.controls.maxDistance = 500 // 降低最大距离
     this.controls.autoRotate = false
     this.controls.autoRotateSpeed = 1
+    
+    // 创建变换控制器
+    this.transformControls = new TransformControls(this.camera, this.renderer.domElement)
+    this.transformControls.setMode('translate') // 默认为平移模式
+    this.transformControls.setSize(0.8) // 设置控制器大小
+    this.scene.add(this.transformControls)
+    
+    // 当变换控制器被使用时，禁用轨道控制器
+    this.transformControls.addEventListener('dragging-changed', (event) => {
+      this.controls.enabled = !event.value
+    })
+    
+    // 默认隐藏变换控制器
+    this.transformControls.visible = false
   }
 
   private createGrid() {
@@ -230,8 +252,13 @@ export class ThreeScene {
     this.fbxLoader = new FBXLoader(loadingManager)
   }
 
+  private setupRaycaster() {
+    this.raycaster = new THREE.Raycaster()
+  }
+
   private setupEventListeners() {
     window.addEventListener('resize', this.handleResize.bind(this))
+    this.renderer.domElement.addEventListener('click', this.handleMouseClick.bind(this))
   }
 
   private handleResize() {
@@ -242,6 +269,74 @@ export class ThreeScene {
     this.camera.updateProjectionMatrix()
     
     this.renderer.setSize(width, height)
+  }
+
+  private handleMouseClick(event: MouseEvent) {
+    // 计算鼠标位置（归一化设备坐标）
+    const rect = this.renderer.domElement.getBoundingClientRect()
+    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+    // 更新射线
+    this.raycaster.setFromCamera(this.mouse, this.camera)
+
+    // 获取所有可相交的对象（只检查模型组中的对象）
+    const intersectables: THREE.Object3D[] = []
+    this.modelGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        intersectables.push(child)
+      }
+    })
+
+    // 计算交点
+    const intersects = this.raycaster.intersectObjects(intersectables, false)
+
+    if (intersects.length > 0) {
+      const clickedObject = intersects[0].object
+      
+      // 优先选择子节点：找到最深层的可选择对象
+      let targetObject = this.findSelectableObject(clickedObject)
+      
+      if (targetObject) {
+        this.selectObject(targetObject)
+      }
+    }
+  }
+
+  private findSelectableObject(clickedObject: THREE.Object3D): THREE.Object3D | null {
+    // 简化版本：直接返回点击的对象
+    return clickedObject
+  }
+
+  private getObjectDepthInModel(target: THREE.Object3D, current: THREE.Object3D, currentDepth: number): number {
+    if (current === target) {
+      return currentDepth
+    }
+    
+    for (const child of current.children) {
+      const depth = this.getObjectDepthInModel(target, child, currentDepth + 1)
+      if (depth !== -1) {
+        return depth
+      }
+    }
+    
+    return -1
+  }
+
+  private selectObject(object: THREE.Object3D) {
+    this.selectedObject = object
+    
+    // 将TransformControls附加到选中的对象
+    this.transformControls.attach(object)
+    this.transformControls.visible = true
+    
+    // 更新相机焦点到选中对象
+    const box = new THREE.Box3().setFromObject(object)
+    const center = box.getCenter(new THREE.Vector3())
+    this.controls.target.copy(center)
+    this.controls.update()
+    
+    console.log('选中对象:', object.name || '未命名对象', object)
   }
 
   private animate() {
@@ -585,6 +680,9 @@ export class ThreeScene {
       
       this.controls.target.copy(center)
       this.controls.update()
+      
+      // 将TransformControls附加到选中的模型
+      this.attachTransformControls(modelId)
     }
   }
 
@@ -694,6 +792,59 @@ export class ThreeScene {
     return rootModels
   }
 
+  // TransformControls 相关方法
+  attachTransformControls(modelId: string) {
+    const model = this.models.get(modelId)
+    if (model && model.object) {
+      this.transformControls.attach(model.object)
+      this.transformControls.visible = true
+    }
+  }
+
+  detachTransformControls() {
+    this.transformControls.detach()
+    this.transformControls.visible = false
+    this.selectedObject = null
+  }
+
+  setTransformMode(mode: 'translate' | 'rotate' | 'scale') {
+    this.transformControls.setMode(mode)
+  }
+
+  getTransformMode(): string {
+    return this.transformControls.mode
+  }
+
+  isTransformControlsVisible(): boolean {
+    return this.transformControls.visible
+  }
+
+  getSelectedObject(): THREE.Object3D | null {
+    return this.selectedObject
+  }
+
+  getSelectedObjectInfo(): { name: string, type: string, modelId?: string } | null {
+    if (!this.selectedObject) return null
+    
+    return {
+      name: this.selectedObject.name || '未命名对象',
+      type: this.selectedObject.type,
+      modelId: undefined // 暂时简化，后续可以扩展
+    }
+  }
+
+  private isObjectInModel(target: THREE.Object3D, modelRoot: THREE.Object3D): boolean {
+    if (target === modelRoot) return true
+    
+    for (const child of modelRoot.children) {
+      if (this.isObjectInModel(target, child)) {
+        return true
+      }
+    }
+    
+    return false
+  }
+
   dispose() {
     // 清理所有blob URLs
     this.blobUrls.forEach(url => URL.revokeObjectURL(url))
@@ -701,6 +852,13 @@ export class ThreeScene {
     
     // 清理资源映射
     this.resourceMap.clear()
+    
+    // 清理TransformControls
+    if (this.transformControls) {
+      this.transformControls.detach()
+      this.scene.remove(this.transformControls)
+      this.transformControls.dispose()
+    }
     
     // 清理性能统计
     if (this.stats && this.stats.dom) {
@@ -710,6 +868,7 @@ export class ThreeScene {
     this.renderer.dispose()
     this.dracoLoader.dispose()
     window.removeEventListener('resize', this.handleResize.bind(this))
+    this.renderer.domElement.removeEventListener('click', this.handleMouseClick.bind(this))
     
     console.log('ThreeScene已完全清理')
   }
