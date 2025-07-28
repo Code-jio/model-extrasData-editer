@@ -47,8 +47,8 @@ const emit = defineEmits<{
 <style scoped>
 .model-list {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 50px;
+  left: 20px;
   width: 380px;
   background: rgba(0, 0, 0, 0.8);
   padding: 15px;

@@ -156,7 +156,7 @@ const loadFiles = async (files: File[]) => {
     setTimeout(() => status.value = '准备就绪', 3000)
     return
   }
-
+  
   try {
     status.value = `正在批量加载 ${modelFiles.length} 个模型文件...`
     
