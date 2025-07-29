@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
@@ -11,6 +12,8 @@ import type {
   SceneConfig,
   CameraConfig,
   LightConfig,
+  ExportOptions,
+  ExportResult,
 } from "@/types";
 
 window.THREE = THREE;
@@ -48,6 +51,7 @@ export class ThreeScene {
 
   // 加载器
   private gltfLoader!: GLTFLoader;
+  private gltfExporter!: GLTFExporter;
   private dracoLoader!: DRACOLoader;
   private objLoader!: OBJLoader;
   private fbxLoader!: FBXLoader;
@@ -277,6 +281,9 @@ export class ThreeScene {
     // GLTF加载器
     this.gltfLoader = new GLTFLoader(loadingManager);
     this.gltfLoader.setDRACOLoader(this.dracoLoader);
+
+    // GLTF导出器
+    this.gltfExporter = new GLTFExporter();
 
     // OBJ加载器
     this.objLoader = new OBJLoader(loadingManager);
@@ -565,13 +572,8 @@ export class ThreeScene {
           this.calculateAndCachePerfInfo(modelInfo);
 
           // 添加到场景
-          this.scene.add(object);
+          this.modelGroup.add(object);
           this.models.set(modelInfo.id, modelInfo);
-          object.updateMatrixWorld(true);
-          // 全局位置（世界坐标）
-          const worldPos = new THREE.Vector3();
-          object.getWorldPosition(worldPos);
-
           results.push(modelInfo);
         } catch (error) {
           console.error(`加载模型 ${file.name} 失败:`, error);
@@ -1072,6 +1074,51 @@ export class ThreeScene {
     return true;
   }
 
+  // ===== 新增：对象位置控制方法 =====
+  /**
+   * 获取当前选中对象的位置坐标
+   */
+  getSelectedObjectPosition(): { x: number; y: number; z: number } | null {
+    if (!this.selectedObject) return null;
+    return {
+      x: this.selectedObject.position.x,
+      y: this.selectedObject.position.y,
+      z: this.selectedObject.position.z,
+    };
+  }
+
+  /**
+   * 设置当前选中对象的位置坐标
+   */
+  setSelectedObjectPosition(x: number, y: number, z: number): boolean {
+    if (!this.selectedObject) return false;
+    this.selectedObject.position.set(x, y, z);
+    return true;
+  }
+
+  /**
+   * 根据模型ID获取对象位置
+   */
+  getModelPosition(modelId: string): { x: number; y: number; z: number } | null {
+    const model = this.models.get(modelId);
+    if (!model) return null;
+    return {
+      x: model.object.position.x,
+      y: model.object.position.y,
+      z: model.object.position.z,
+    };
+  }
+
+  /**
+   * 根据模型ID设置对象位置
+   */
+  setModelPosition(modelId: string, x: number, y: number, z: number): boolean {
+    const model = this.models.get(modelId);
+    if (!model) return false;
+    model.object.position.set(x, y, z);
+    return true;
+  }
+
   // 相机动画控制方法
   isCameraAnimating(): boolean {
     return this.cameraAnimation.isAnimating;
@@ -1123,6 +1170,293 @@ export class ThreeScene {
       }
     });
     return total;
+  }
+
+  // ===== 模型导出功能 =====
+  
+  /**
+   * 导出单个模型
+   * @param modelId 模型ID
+   * @param options 导出配置选项
+   * @returns Promise<ExportResult>
+   */
+  async exportModel(modelId: string, options?: Partial<ExportOptions>): Promise<ExportResult> {
+    const model = this.models.get(modelId);
+    if (!model) {
+      return {
+        success: false,
+        fileName: '',
+        error: '模型不存在'
+      };
+    }
+
+    // 检查模型可见性
+    if (options?.onlyVisible !== false && !model.visible) {
+      return {
+        success: false,
+        fileName: '',
+        error: '模型不可见，无法导出'
+      };
+    }
+
+    const exportOptions = this.getDefaultExportOptions(options);
+    
+    try {
+      // 创建临时场景用于导出
+      const exportScene = new THREE.Scene();
+      
+      // 克隆模型对象，保持变换关系
+      const clonedObject = this.cloneObjectWithTransforms(model.object);
+      exportScene.add(clonedObject);
+      
+      // 如果需要保留自定义材质，确保材质也被正确处理
+      if (exportOptions.includeCustomMaterials) {
+        this.processCustomMaterials(clonedObject);
+      }
+      
+      const fileName = this.generateFileName(model.name, exportOptions.format);
+      const data = await this.performExport(exportScene, exportOptions);
+      
+      // 下载文件
+      this.downloadFile(data, fileName, exportOptions.format);
+      
+      return {
+        success: true,
+        fileName,
+        data
+      };
+    } catch (error) {
+      console.error('导出模型失败:', error);
+      return {
+        success: false,
+        fileName: '',
+        error: error instanceof Error ? error.message : '导出失败'
+      };
+    }
+  }
+
+  /**
+   * 批量导出可见模型
+   * @param modelIds 模型ID数组，如果为空则导出所有可见模型
+   * @param options 导出配置选项
+   * @returns Promise<ExportResult>
+   */
+  async exportModels(modelIds?: string[], options?: Partial<ExportOptions>): Promise<ExportResult> {
+    const exportOptions = this.getDefaultExportOptions(options);
+    
+    try {
+      // 确定要导出的模型
+      let modelsToExport: ModelInfo[];
+      
+      if (modelIds && modelIds.length > 0) {
+        modelsToExport = modelIds
+          .map(id => this.models.get(id))
+          .filter((model): model is ModelInfo => model !== undefined);
+      } else {
+        // 导出所有根模型
+        modelsToExport = this.getRootModels();
+      }
+      
+      // 过滤可见模型
+      if (exportOptions.onlyVisible) {
+        modelsToExport = modelsToExport.filter(model => model.visible);
+      }
+      
+      if (modelsToExport.length === 0) {
+        return {
+          success: false,
+          fileName: '',
+          error: '没有可导出的模型'
+        };
+      }
+      
+      // 创建临时场景用于导出
+      const exportScene = new THREE.Scene();
+      
+      // 添加所有要导出的模型，保持层级关系
+      modelsToExport.forEach(model => {
+        const clonedObject = this.cloneObjectWithTransforms(model.object);
+        exportScene.add(clonedObject);
+        
+        if (exportOptions.includeCustomMaterials) {
+          this.processCustomMaterials(clonedObject);
+        }
+      });
+      
+      const fileName = this.generateFileName('scene_export', exportOptions.format);
+      const data = await this.performExport(exportScene, exportOptions);
+      
+      // 下载文件
+      this.downloadFile(data, fileName, exportOptions.format);
+      
+      return {
+        success: true,
+        fileName,
+        data
+      };
+    } catch (error) {
+      console.error('批量导出模型失败:', error);
+      return {
+        success: false,
+        fileName: '',
+        error: error instanceof Error ? error.message : '批量导出失败'
+      };
+    }
+  }
+
+  /**
+   * 获取默认导出配置
+   */
+  private getDefaultExportOptions(options?: Partial<ExportOptions>): ExportOptions {
+    return {
+      format: 'glb',
+      includeAnimations: true,
+      includeCustomMaterials: true,
+      onlyVisible: true,
+      preserveTransforms: true,
+      binary: true,
+      ...options
+    };
+  }
+
+  /**
+   * 克隆对象并保持变换关系
+   */
+  private cloneObjectWithTransforms(object: THREE.Object3D): THREE.Object3D {
+    const cloned = object.clone(true);
+    
+    // 确保变换矩阵被正确复制
+    cloned.matrix.copy(object.matrix);
+    cloned.matrixWorld.copy(object.matrixWorld);
+    
+    // 递归处理子对象
+    cloned.traverse((child) => {
+      const originalChild = object.getObjectByProperty('uuid', child.uuid);
+      if (originalChild) {
+        child.matrix.copy(originalChild.matrix);
+        child.matrixWorld.copy(originalChild.matrixWorld);
+        
+        // 保持位置、旋转、缩放
+        child.position.copy(originalChild.position);
+        child.rotation.copy(originalChild.rotation);
+        child.scale.copy(originalChild.scale);
+      }
+    });
+    
+    return cloned;
+  }
+
+  /**
+   * 处理自定义材质
+   */
+  private processCustomMaterials(object: THREE.Object3D): void {
+    object.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        // 确保材质被正确克隆和处理
+        if (Array.isArray(child.material)) {
+          child.material = child.material.map(mat => mat.clone());
+        } else {
+          child.material = child.material.clone();
+        }
+      }
+    });
+  }
+
+  /**
+   * 执行实际的导出操作
+   */
+  private async performExport(scene: THREE.Scene, options: ExportOptions): Promise<ArrayBuffer | object> {
+    return new Promise((resolve, reject) => {
+      const exportOptions = {
+        binary: options.format === 'glb' || options.binary,
+        includeCustomExtensions: options.includeCustomMaterials,
+        animations: options.includeAnimations ? this.getSceneAnimations(scene) : [],
+        onlyVisible: options.onlyVisible,
+        truncateDrawRange: true,
+        embedImages: true,
+        maxTextureSize: 4096
+      };
+
+      this.gltfExporter.parse(
+        scene,
+        (result) => {
+          resolve(result);
+        },
+        (error) => {
+          reject(error);
+        },
+        exportOptions
+      );
+    });
+  }
+
+  /**
+   * 获取场景中的动画
+   */
+  private getSceneAnimations(scene: THREE.Scene): THREE.AnimationClip[] {
+    const animations: THREE.AnimationClip[] = [];
+    
+    scene.traverse((object) => {
+      // 查找对象上的动画
+      if (object.animations && object.animations.length > 0) {
+        animations.push(...object.animations);
+      }
+    });
+    
+    return animations;
+  }
+
+  /**
+   * 生成文件名
+   */
+  private generateFileName(baseName: string, format: 'glb' | 'gltf'): string {
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    const cleanName = baseName.replace(/\.[^/.]+$/, ''); // 移除原有扩展名
+    return `${cleanName}_exported_${timestamp}.${format}`;
+  }
+
+  /**
+   * 下载文件
+   */
+  private downloadFile(data: ArrayBuffer | object, fileName: string, format: 'glb' | 'gltf'): void {
+    let blob: Blob;
+    
+    if (format === 'glb' || data instanceof ArrayBuffer) {
+      blob = new Blob([data as ArrayBuffer], { type: 'application/octet-stream' });
+    } else {
+      const jsonString = JSON.stringify(data, null, 2);
+      blob = new Blob([jsonString], { type: 'application/json' });
+    }
+    
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.style.display = 'none';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // 清理blob URL
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
+  /**
+   * 获取可导出的模型列表（仅可见模型）
+   */
+  getExportableModels(): ModelInfo[] {
+    return this.getRootModels().filter(model => model.visible);
+  }
+
+  /**
+   * 检查模型是否可以导出
+   */
+  canExportModel(modelId: string): boolean {
+    const model = this.models.get(modelId);
+    return model !== undefined && model.visible;
   }
 
   dispose() {

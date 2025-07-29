@@ -17,6 +17,9 @@
       :has-models="hasModels"
       :show-user-data-panel="showUserDataPanel"
       :selected-user-data="selectedUserData"
+      :selected-model-id="selectedModelForPosition?.id"
+      :selected-model-name="selectedModelForPosition?.name"
+      :initial-position="selectedModelPosition"
       @set-transform-mode="setTransformMode"
       @hide-transform-controls="hideTransformControls"
       @reset-camera="resetCamera"
@@ -28,6 +31,7 @@
       @remove-user-data="removeUserDataAttribute"
       @clear-all-user-data="clearAllUserData"
       @export-user-data="exportUserData"
+      @set-position="setModelPosition"
     />
 
     <!-- 模型列表 -->
@@ -42,6 +46,8 @@
       @toggle-expand="toggleNodeExpand"
       @toggle-visibility="handleToggleVisibility"
       @remove-model="removeModel"
+      @export-model="openExportDialog"
+      @batch-export="() => openExportDialog()"
     />
 
     <!-- 状态信息 -->
@@ -50,17 +56,28 @@
       :selected-perf-info="selectedPerfInfo" 
       :global-perf-info="globalPerfInfo" 
     />
+
+    <!-- 导出对话框 -->
+    <ExportDialog
+      :visible="showExportDialog"
+      :model-name="exportTargetModel?.name"
+      :model-count="exportableModelsCount"
+      :is-batch-export="isExportingBatch"
+      @close="closeExportDialog"
+      @export="handleExport"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ThreeScene } from './composables/useThreeScene'
-import type { ModelInfo } from './types'
+import type { ModelInfo, ExportOptions } from './types'
 import DropZone from './components/DropZone.vue'
 import ControlPanel from './components/ControlPanel.vue'
 import ModelList from './components/ModelList.vue'
 import StatusBar from './components/StatusBar.vue'
+import ExportDialog from './components/ExportDialog.vue'
 
 // 响应式数据
 const sceneContainer = ref<HTMLElement>()
@@ -75,6 +92,15 @@ const showUserDataPanel = ref(false)
 
 // 性能信息（点/线/面数量）
 const selectedPerfInfo = ref<{ vertices: number; edges: number; faces: number } | null>(null)
+
+// 选中的模型信息（用于位置控制）
+const selectedModelForPosition = ref<{ id: string; name: string } | null>(null)
+const selectedModelPosition = ref<{ x: number; y: number; z: number } | null>(null)
+
+// 导出相关状态
+const showExportDialog = ref(false)
+const exportTargetModel = ref<ModelInfo | null>(null)
+const isExportingBatch = ref(false)
 
 const globalPerfInfo = computed(() => {
   modelUpdateTrigger.value // 依赖模型更新触发重新计算
@@ -117,6 +143,12 @@ const allModelsCount = computed(() => {
   return allModelsFlattened.value.length
 })
 
+const exportableModelsCount = computed(() => {
+  modelUpdateTrigger.value
+  if (!threeScene) return 0
+  return threeScene.getExportableModels().length
+})
+
 // Three.js 场景实例
 let threeScene: ThreeScene | null = null
 
@@ -138,6 +170,7 @@ onMounted(() => {
         } else {
           showUserDataPanel.value = false
         }
+        // 移除位置信息的自动更新，避免覆盖用户输入
       }
     }, 100) // 每100ms检查一次
   }
@@ -188,6 +221,8 @@ const clearScene = () => {
   threeScene?.clearModels()
   selectedModel.value = null
   selectedPerfInfo.value = null
+  selectedModelForPosition.value = null
+  selectedModelPosition.value = null
   status.value = '场景已清空'
   modelUpdateTrigger.value++
   setTimeout(() => status.value = '准备就绪', 2000)
@@ -211,6 +246,11 @@ const focusOnModel = (model: ModelInfo) => {
   threeScene?.focusOnModel(model.id)
   // (优化) 更新性能信息 - 直接从缓存读取
   selectedPerfInfo.value = model.perfInfo || null
+  // 设置选中模型用于位置控制
+  selectedModelForPosition.value = { id: model.id, name: model.name }
+  // 获取当前位置
+  const position = threeScene?.getModelPosition(model.id)
+  selectedModelPosition.value = position || null
   status.value = `聚焦到 ${model.name}`
   setTimeout(() => status.value = '准备就绪', 2000)
 }
@@ -324,6 +364,77 @@ const exportUserData = () => {
     status.value = '复制失败'
     setTimeout(() => status.value = '准备就绪', 2000)
   })
+}
+
+// 位置控制相关方法
+const setModelPosition = (modelId: string, x: number, y: number, z: number) => {
+  if (threeScene && threeScene.setModelPosition(modelId, x, y, z)) {
+    selectedModelPosition.value = { x, y, z }
+    status.value = `位置已更新: (${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)})`
+    setTimeout(() => status.value = '准备就绪', 2000)
+  }
+}
+
+// 导出相关方法
+const openExportDialog = (modelId?: string) => {
+  if (modelId) {
+    // 单个模型导出
+    const model = rootModels.value.find(m => m.id === modelId)
+    if (model) {
+      exportTargetModel.value = model
+      isExportingBatch.value = false
+      showExportDialog.value = true
+    }
+  } else {
+    // 批量导出
+    exportTargetModel.value = null
+    isExportingBatch.value = true
+    showExportDialog.value = true
+  }
+}
+
+const closeExportDialog = () => {
+  showExportDialog.value = false
+  exportTargetModel.value = null
+  isExportingBatch.value = false
+}
+
+const handleExport = async (options: ExportOptions) => {
+  if (!threeScene) {
+    status.value = '场景未初始化'
+    setTimeout(() => status.value = '准备就绪', 2000)
+    closeExportDialog()
+    return
+  }
+
+  try {
+    status.value = '正在导出模型...'
+    
+    let result
+    if (isExportingBatch.value) {
+      // 批量导出
+      result = await threeScene.exportModels(undefined, options)
+    } else if (exportTargetModel.value) {
+      // 单个模型导出
+      result = await threeScene.exportModel(exportTargetModel.value.id, options)
+    } else {
+      throw new Error('没有选择要导出的模型')
+    }
+
+    if (result.success) {
+      status.value = `导出成功: ${result.fileName}`
+      setTimeout(() => status.value = '准备就绪', 3000)
+    } else {
+      status.value = `导出失败: ${result.error}`
+      setTimeout(() => status.value = '准备就绪', 3000)
+    }
+  } catch (error) {
+    console.error('导出模型失败:', error)
+    status.value = `导出失败: ${error instanceof Error ? error.message : '未知错误'}`
+    setTimeout(() => status.value = '准备就绪', 3000)
+  } finally {
+    closeExportDialog()
+  }
 }
 </script> 
 

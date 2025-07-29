@@ -42,9 +42,16 @@ const emit = defineEmits<{
 .section-header {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   padding-bottom: 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.section-header h3 {
+  margin: 0;
+  font-size: 12px;
+  color: #40a9ff;
+  font-weight: 600;
 }
 
 .section-icon {
@@ -60,42 +67,54 @@ const emit = defineEmits<{
 }
 
 .scene-controls {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px;
 }
 
-.scene-btn {
-  background: linear-gradient(135deg, #444 0%, #555 100%);
-  border: 1px solid #666;
-  color: white;
-  padding: 6px 8px;
-  border-radius: 4px;
-  cursor: pointer;
+.control-grid {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 4px;
+}
+
+.control-btn {
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
   font-size: 10px;
-  transition: all 0.3s ease;
-  flex: 1;
-  justify-content: center;
-  min-width: 0;
+  text-align: center;
 }
 
-.scene-btn:hover {
-  background: linear-gradient(135deg, #555 0%, #666 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
 }
 
-.scene-btn.danger {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%);
-  border-color: #ff4444;
+.control-btn.camera {
+  background: rgba(64, 169, 255, 0.2);
+  border-color: rgba(64, 169, 255, 0.4);
 }
 
-.scene-btn.danger:hover {
-  background: linear-gradient(135deg, #ff4444 0%, #ff3333 100%);
-  box-shadow: 0 4px 8px rgba(255, 68, 68, 0.3);
+.control-btn.camera:hover {
+  background: rgba(64, 169, 255, 0.3);
+  border-color: rgba(64, 169, 255, 0.6);
+}
+
+.control-btn.clear {
+  background: rgba(255, 107, 107, 0.2);
+  border-color: rgba(255, 107, 107, 0.4);
+}
+
+.control-btn.clear:hover {
+  background: rgba(255, 107, 107, 0.3);
+  border-color: rgba(255, 107, 107, 0.6);
 }
 
 .btn-icon {

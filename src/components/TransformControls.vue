@@ -52,124 +52,68 @@ const emit = defineEmits<{
 </script>
 
 <style scoped>
-.transform-section {
-  background: linear-gradient(135deg, #333 0%, #404040 100%);
-  padding: 10px;
+.transform-controls {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
-  border: 1px solid #555;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.transform-section:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+  padding: 8px;
 }
 
 .section-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 6px;
 }
 
-.section-icon {
-  font-size: 16px;
-  margin-right: 6px;
-}
-
-.section-title {
-  font-size: 13px;
-  font-weight: bold;
-  color: #007acc;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+.section-header h3 {
+  margin: 0;
+  font-size: 12px;
+  color: #40a9ff;
+  font-weight: 600;
 }
 
 .transform-modes {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  display: flex;
+  gap: 4px;
   margin-bottom: 8px;
 }
 
 .mode-btn {
-  background: linear-gradient(135deg, #444 0%, #555 100%);
-  border: 1px solid #666;
-  color: white;
-  padding: 6px 4px;
-  border-radius: 4px;
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
+  transition: all 0.2s;
   font-size: 10px;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.mode-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-  transition: left 0.5s;
-}
-
-.mode-btn:hover::before {
-  left: 100%;
-}
-
-.mode-btn:hover {
-  background: linear-gradient(135deg, #555 0%, #666 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-.mode-btn.active {
-  background: linear-gradient(135deg, #007acc 0%, #0088dd 100%);
-  border-color: #007acc;
-  box-shadow: 0 0 10px rgba(0, 122, 204, 0.3);
-}
-
-.mode-btn.active:hover {
-  background: linear-gradient(135deg, #0066aa 0%, #0077cc 100%);
-}
-
-.mode-icon {
-  font-size: 14px;
-}
-
-.mode-text {
-  font-weight: bold;
   text-align: center;
 }
 
-.hide-controls-btn {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%);
-  border: 1px solid #ff4444;
-  color: white;
-  padding: 8px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 11px;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-weight: bold;
-  width: 100%;
+.mode-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
-.hide-controls-btn:hover {
-  background: linear-gradient(135deg, #ff4444 0%, #ff3333 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(255, 68, 68, 0.3);
+.mode-btn.active {
+  background: #40a9ff;
+  border-color: #40a9ff;
+  color: white;
+}
+
+.hide-btn {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid rgba(255, 0, 0, 0.3);
+  border-radius: 3px;
+  background: rgba(255, 0, 0, 0.1);
+  color: #ff6b6b;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 10px;
+}
+
+.hide-btn:hover {
+  background: rgba(255, 0, 0, 0.2);
+  border-color: rgba(255, 0, 0, 0.5);
 }
 </style> 

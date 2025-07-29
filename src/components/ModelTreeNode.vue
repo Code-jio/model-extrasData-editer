@@ -15,10 +15,14 @@
         @click.stop="emit('toggleExpand', model.id)"
         :class="{ 'has-children': hasChildren }"
       >
-        <span v-if="hasChildren">
-          {{ isExpanded ? '▼' : '▶' }}
+        <span v-if="hasChildren" class="chevron" :class="{ expanded: isExpanded }">
+          ›
         </span>
-        <span v-else class="no-children">{{ getNodeTypeIcon() }}</span>
+        <span v-else class="node-type-icon">
+          <span v-if="model.nodeType === 'mesh'" class="icon-mesh">◆</span>
+          <span v-else-if="model.nodeType === 'group'" class="icon-group">⊞</span>
+          <span v-else class="icon-object">○</span>
+        </span>
       </span>
       
       <!-- 节点名称 -->
@@ -27,14 +31,23 @@
       <!-- 操作按钮 -->
       <div class="node-actions">
         <button 
-          class="visibility-btn" 
+          v-if="isRoot && model.visible"
+          class="action-btn export-btn" 
+          @click.stop="emit('exportModel', model.id)"
+          title="导出模型"
+        >
+          ↓
+        </button>
+        <button 
+          class="action-btn visibility-btn" 
           @click.stop="emit('toggleVisibility', model)"
           :title="getVisibilityTitle()"
         >
-          {{ getVisibilityIcon() }}
+          <span v-if="model.visible" class="icon-visible">●</span>
+          <span v-else class="icon-hidden">○</span>
         </button>
         <button 
-          class="remove-btn" 
+          class="action-btn remove-btn" 
           @click.stop="emit('removeModel', model.id)"
           title="删除"
         >
@@ -59,6 +72,7 @@
         @toggle-expand="emit('toggleExpand', $event)"
         @toggle-visibility="emit('toggleVisibility', $event)"
         @remove-model="emit('removeModel', $event)"
+        @export-model="emit('exportModel', $event)"
       />
     </div>
   </div>
@@ -81,6 +95,7 @@ const emit = defineEmits<{
   toggleExpand: [nodeId: string]
   toggleVisibility: [model: ModelInfo]
   removeModel: [modelId: string]
+  exportModel: [modelId: string]
 }>()
 
 const hasChildren = computed(() => {
@@ -127,7 +142,7 @@ export default {
 
 <style scoped>
 .tree-node {
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .tree-node:last-child {
@@ -139,117 +154,171 @@ export default {
   align-items: center;
   padding: 8px 12px;
   cursor: pointer;
-  background: #2a2a2a;
+  background: transparent;
   border-radius: 4px;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
   position: relative;
+  font-size: 12px;
+  margin: 2px 0;
 }
 
 .node-row:hover {
-  background: #3a3a3a;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .node-row.active {
-  background: #4a4a4a;
-  border-left: 3px solid #007acc;
-}
-
-.node-row.hidden {
-  opacity: 0.5;
-}
-
-.expand-icon {
-  display: inline-block;
-  width: 20px;
-  text-align: center;
-  margin-right: 8px;
-  cursor: pointer;
-  user-select: none;
-  font-size: 12px;
-  color: #007acc;
-  font-weight: bold;
-}
-
-.expand-icon.has-children:hover {
-  transform: scale(1.2);
+  background: rgba(64, 169, 255, 0.15);
+  border-left: 3px solid #40a9ff;
   color: #40a9ff;
 }
 
-.expand-icon .no-children {
+.node-row.hidden {
+  opacity: 0.4;
+}
+
+.expand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+  color: #888;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.expand-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #40a9ff;
+}
+
+.chevron {
+  font-weight: bold;
+  transition: transform 0.2s ease;
+  transform: rotate(0deg);
+}
+
+.chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.node-type-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 10px;
   opacity: 0.6;
-  color: #888;
+}
+
+.icon-mesh {
+  color: #52c41a;
+}
+
+.icon-group {
+  color: #1890ff;
+}
+
+.icon-object {
+  color: #faad14;
 }
 
 .child-node .node-row {
   padding-left: 32px;
-  background: #252525;
+  background: rgba(255, 255, 255, 0.02);
+  margin-left: 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .child-node .child-node .node-row {
-  padding-left: 52px;
-  background: #202020;
+  padding-left: 48px;
+  background: rgba(255, 255, 255, 0.01);
 }
 
 .child-node .child-node .child-node .node-row {
-  padding-left: 72px;
-  background: #1a1a1a;
+  padding-left: 64px;
 }
 
 .node-name {
   flex: 1;
   margin-right: 8px;
-  font-size: 14px;
+  font-size: 12px;
   color: #e0e0e0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
+}
+
+.node-row.active .node-name {
+  color: #40a9ff;
+  font-weight: 500;
 }
 
 .node-actions {
   display: flex;
   gap: 4px;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s ease;
 }
 
 .node-row:hover .node-actions {
   opacity: 1;
 }
 
-.visibility-btn,
-.remove-btn {
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px 6px;
   border-radius: 3px;
   font-size: 12px;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
+  color: #888;
+}
+
+.action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .visibility-btn:hover {
-  background: #4a4a4a;
+  color: #52c41a;
+}
+
+.visibility-btn .icon-hidden {
+  opacity: 0.5;
+}
+
+.export-btn {
+  color: #1890ff;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.export-btn:hover {
+  background: rgba(24, 144, 255, 0.2);
+  color: #40a9ff;
 }
 
 .remove-btn {
-  color: #ff6b6b;
+  color: #ff4d4f;
   font-weight: bold;
+  font-size: 16px;
 }
 
 .remove-btn:hover {
-  background: #ff6b6b;
-  color: white;
+  background: rgba(255, 77, 79, 0.2);
+  color: #ff7875;
 }
 
 .children-container {
-  border-left: 1px solid #333;
-  margin-left: 10px;
   overflow: visible;
-}
-
-.root-node > .children-container {
-  border-left: 2px solid #555;
-  margin-left: 15px;
 }
 </style> 

@@ -107,4 +107,82 @@ const emit = defineEmits<{
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.model-controls {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.section-header {
+  margin-bottom: 6px;
+}
+
+.section-header h3 {
+  margin: 0;
+  font-size: 12px;
+  color: #40a9ff;
+  font-weight: 600;
+}
+
+.control-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.control-btn {
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 10px;
+  text-align: center;
+}
+
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.control-btn.primary {
+  background: rgba(64, 169, 255, 0.2);
+  border-color: rgba(64, 169, 255, 0.4);
+}
+
+.control-btn.primary:hover:not(:disabled) {
+  background: rgba(64, 169, 255, 0.3);
+  border-color: rgba(64, 169, 255, 0.6);
+}
+
+.control-btn.secondary {
+  background: rgba(82, 196, 26, 0.2);
+  border-color: rgba(82, 196, 26, 0.4);
+}
+
+.control-btn.secondary:hover:not(:disabled) {
+  background: rgba(82, 196, 26, 0.3);
+  border-color: rgba(82, 196, 26, 0.6);
+}
+
+.control-btn.warning {
+  background: rgba(255, 193, 7, 0.2);
+  border-color: rgba(255, 193, 7, 0.4);
+}
+
+.control-btn.warning:hover:not(:disabled) {
+  background: rgba(255, 193, 7, 0.3);
+  border-color: rgba(255, 193, 7, 0.6);
+}
 </style> 

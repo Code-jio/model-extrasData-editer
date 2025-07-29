@@ -382,64 +382,69 @@ const removeUserDataAttribute = (key: string) => {
   cursor: help;
 }
 
+/* 输入样式 */
 .attribute-input,
 .attribute-select {
   width: 100%;
+  max-width: 100%;
   padding: 4px 6px;
-  border: 1px solid #555;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 3px;
-  background: #1a1a1a;
+  background: rgba(255, 255, 255, 0.1);
   color: white;
-  font-size: 11px;
-  transition: border-color 0.2s ease;
+  font-size: 10px;
+  transition: all 0.2s;
+  box-sizing: border-box;
 }
 
 .attribute-input:focus,
 .attribute-select:focus {
   outline: none;
-  border-color: #007acc;
-  box-shadow: 0 0 4px rgba(0, 122, 204, 0.3);
+  border-color: #40a9ff;
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .attribute-color {
   width: 100%;
-  height: 30px;
+  max-width: 100%;
+  height: 24px;
   padding: 1px;
-  border: 1px solid #555;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 3px;
   background: transparent;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 .boolean-input {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .boolean-input input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  accent-color: #007acc;
+  width: 12px;
+  height: 12px;
+  accent-color: #40a9ff;
 }
 
 .checkbox-label {
-  font-size: 11px;
+  font-size: 10px;
   color: #ccc;
   cursor: pointer;
 }
 
 .remove-attribute-btn {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 18px;
-  height: 18px;
+  top: 3px;
+  right: 3px;
+  width: 16px;
+  height: 16px;
   background: #ff6b6b;
   border: none;
   border-radius: 50%;
   color: white;
-  font-size: 12px;
+  font-size: 10px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -500,23 +505,84 @@ const removeUserDataAttribute = (key: string) => {
 /* 滚动条样式 */
 .attributes-container::-webkit-scrollbar,
 .userdata-section::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .attributes-container::-webkit-scrollbar-track,
 .userdata-section::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 .attributes-container::-webkit-scrollbar-thumb,
 .userdata-section::-webkit-scrollbar-thumb {
-  background: #007acc;
-  border-radius: 3px;
+  background: #40a9ff;
+  border-radius: 2px;
 }
 
 .attributes-container::-webkit-scrollbar-thumb:hover,
 .userdata-section::-webkit-scrollbar-thumb:hover {
-  background: #0088dd;
+  background: #1890ff;
+}
+
+/* 基础样式 */
+.user-data-panel {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.section-title {
+  font-size: 12px;
+  color: #40a9ff;
+  font-weight: 600;
+  margin: 0;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 3px;
+}
+
+.action-btn {
+  padding: 3px 6px;
+  border: none;
+  border-radius: 3px;
+  font-size: 9px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn.export {
+  background: rgba(82, 196, 26, 0.2);
+  color: #52c41a;
+  border: 1px solid rgba(82, 196, 26, 0.3);
+}
+
+.action-btn.export:hover {
+  background: rgba(82, 196, 26, 0.3);
+}
+
+.action-btn.clear {
+  background: rgba(255, 107, 107, 0.2);
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+.action-btn.clear:hover {
+  background: rgba(255, 107, 107, 0.3);
 }
 </style> 

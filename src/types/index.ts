@@ -51,4 +51,22 @@ export interface LightConfig {
     color: number
     intensity: number
   }
+}
+
+// 导出配置接口
+export interface ExportOptions {
+  format: 'glb' | 'gltf'
+  includeAnimations: boolean
+  includeCustomMaterials: boolean
+  onlyVisible: boolean
+  preserveTransforms: boolean
+  binary: boolean
+}
+
+// 导出结果接口
+export interface ExportResult {
+  success: boolean
+  fileName: string
+  data?: ArrayBuffer | object
+  error?: string
 } 
