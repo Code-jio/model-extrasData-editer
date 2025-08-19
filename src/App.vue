@@ -27,11 +27,19 @@
       @add-model="showDropZone"
       @show-all-models="showAllModels"
       @hide-all-models="hideAllModels"
-      @update-user-data="updateUserDataAttribute"
+      @update-user-data="handleUserDataSave"
       @remove-user-data="removeUserDataAttribute"
       @clear-all-user-data="clearAllUserData"
       @export-user-data="exportUserData"
       @set-position="setModelPosition"
+    />
+
+    <!-- 选中对象信息 -->
+    <SelectedObjectInfo
+      v-if="selectedObjectInfo && selectedObjectInfo.modelId"
+      :selected-object-info="selectedObjectInfo"
+      :current-user-data="selectedUserData"
+      @save-user-data="handleUserDataSave"
     />
 
     <!-- 模型列表 -->
@@ -70,14 +78,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { ThreeScene } from './composables/useThreeScene'
-import type { ModelInfo, ExportOptions } from './types'
-import DropZone from './components/DropZone.vue'
-import ControlPanel from './components/ControlPanel.vue'
-import ModelList from './components/ModelList.vue'
-import StatusBar from './components/StatusBar.vue'
-import ExportDialog from './components/ExportDialog.vue'
+import { ref, onMounted, computed, } from 'vue'
+
+import { ThreeScene } from '@/composables/useThreeScene'
+import type { ModelInfo, ExportOptions } from '@/types'
+
+import DropZone from '@/components/DropZone.vue'
+import ControlPanel from '@/components/ControlPanel.vue'
+import ModelList from '@/components/ModelList.vue'
+import StatusBar from '@/components/StatusBar.vue'
+import ExportDialog from '@/components/ExportDialog.vue'
+import SelectedObjectInfo from '@/components/SelectedObjectInfo.vue'
 
 // 响应式数据
 const sceneContainer = ref<HTMLElement>()
@@ -86,7 +97,12 @@ const status = ref('准备就绪')
 const modelUpdateTrigger = ref(0)
 const expandedNodes = ref<Set<string>>(new Set())
 const transformMode = ref<'translate' | 'rotate' | 'scale'>('translate')
-const selectedObjectInfo = ref<{ name: string, type: string, modelId?: string } | null>(null)
+interface SelectedObjectInfo {
+  name: string
+  type: string
+  modelId?: string
+}
+const selectedObjectInfo = ref<SelectedObjectInfo | null>(null)
 const selectedUserData = ref<Record<string, any>>({})
 const showUserDataPanel = ref(false)
 
@@ -158,19 +174,27 @@ onMounted(() => {
     threeScene = new ThreeScene(sceneContainer.value)
     threeScene.init()
     
-    // 定时检查选中对象信息
+    // 定时检查选中对象信息，但避免重置用户手动设置的选中对象
     setInterval(() => {
       if (threeScene) {
-        selectedObjectInfo.value = threeScene.getSelectedObjectInfo()
-        // 同时更新userData
-        const userData = threeScene.getSelectedObjectUserData()
-        if (userData) {
-          selectedUserData.value = userData
-          showUserDataPanel.value = true
-        } else {
+        const currentSelected = threeScene.getSelectedObjectInfo()
+        
+        // 只有当场景中的选中对象发生变化时才更新
+        // 避免重置用户通过点击模型列表设置的对象
+        if (currentSelected && currentSelected.modelId) {
+          selectedObjectInfo.value = currentSelected
+          // 同时更新userData
+          const userData = threeScene.getSelectedObjectUserData()
+          if (userData) {
+            selectedUserData.value = userData
+            showUserDataPanel.value = true
+          }
+        } else if (!selectedModel.value) {
+          // 只有当没有通过模型列表选中模型时，才允许场景取消选中
+          selectedObjectInfo.value = null
+          selectedUserData.value = {}
           showUserDataPanel.value = false
         }
-        // 移除位置信息的自动更新，避免覆盖用户输入
       }
     }, 100) // 每100ms检查一次
   }
@@ -251,6 +275,18 @@ const focusOnModel = (model: ModelInfo) => {
   // 获取当前位置
   const position = threeScene?.getModelPosition(model.id)
   selectedModelPosition.value = position || null
+  
+  // ✅ 设置选中对象信息，确保用户数据编辑组件显示
+  selectedObjectInfo.value = {
+    name: model.name,
+    type: model.nodeType === 'root' ? '模型' : '节点',
+    modelId: model.id
+  }
+  
+  // ✅ 获取并设置用户数据
+  const userData = threeScene?.getModelUserData(model.id) || {}
+  selectedUserData.value = userData
+  
   status.value = `聚焦到 ${model.name}`
   setTimeout(() => status.value = '准备就绪', 2000)
 }
@@ -345,6 +381,19 @@ const clearAllUserData = () => {
   if (threeScene && threeScene.clearSelectedObjectUserData()) {
     selectedUserData.value = {}
     status.value = '已清空所有属性'
+    setTimeout(() => status.value = '准备就绪', 2000)
+  }
+}
+
+// 处理用户数据保存
+const handleUserDataSave = (modelId: string, userData: Record<string, any>) => {
+  console.log('App.vue接收到保存事件:', modelId, userData)
+  if (threeScene) {
+    threeScene.updateModelUserData(modelId, userData)
+    selectedUserData.value = userData
+    status.value = '自定义属性已保存'
+    modelUpdateTrigger.value++
+    console.log('用户数据已保存到模型:', modelId, userData)
     setTimeout(() => status.value = '准备就绪', 2000)
   }
 }
@@ -458,4 +507,4 @@ const handleExport = async (options: ExportOptions) => {
     flex-direction: column;
   }
 }
-</style> 
+</style>

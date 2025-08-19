@@ -11,12 +11,12 @@ export interface ModelInfo {
   }
   loadTime: number
   visible: boolean
-  // 新增：支持子节点层级结构
   children: ModelInfo[]
   parent?: ModelInfo
   nodeType: 'root' | 'mesh' | 'group' | 'object'
   depth: number
   perfInfo?: { vertices: number; edges: number; faces: number }
+  userData?: Record<string, any>
 }
 
 export interface LoaderProgress {
@@ -69,4 +69,4 @@ export interface ExportResult {
   fileName: string
   data?: ArrayBuffer | object
   error?: string
-} 
+}

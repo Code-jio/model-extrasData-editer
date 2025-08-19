@@ -1,7 +1,11 @@
 <template>
   <div class="controls">
     <!-- 选中对象信息 -->
-    <SelectedObjectInfo :selected-object-info="selectedObjectInfo" />
+    <SelectedObjectInfo 
+      :selected-object-info="selectedObjectInfo" 
+      :current-user-data="selectedUserData"
+      @save-user-data="(modelId, userData) => emit('updateUserData', modelId, userData)"
+    />
 
     <!-- 变换控制 -->
     <TransformControls
@@ -76,7 +80,7 @@ const emit = defineEmits<{
   addModel: []
   showAllModels: []
   hideAllModels: []
-  updateUserData: [key: string, value: any]
+  updateUserData: [modelId: string, userData: Record<string, any>]
   removeUserData: [key: string]
   clearAllUserData: []
   exportUserData: []
@@ -98,7 +102,7 @@ const emit = defineEmits<{
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 260px;
+  width: 350px;
   max-width: calc(50vw - 24px);
   max-height: calc(100vh - 24px);
   overflow-y: auto;
@@ -158,16 +162,6 @@ const emit = defineEmits<{
 .controls::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
-
-/* 响应式优化 */
-@media (max-width: 1200px) {
-  .controls {
-    width: 240px;
-    max-width: calc(45vw - 16px);
-    font-size: 10px;
-  }
-}
-
 @media (max-width: 768px) {
   .controls {
     width: 220px;
@@ -198,4 +192,4 @@ const emit = defineEmits<{
     border: 1px solid rgba(255, 255, 255, 0.12);
   }
 }
-</style> 
+</style>

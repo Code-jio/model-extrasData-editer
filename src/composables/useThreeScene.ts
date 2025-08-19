@@ -6,7 +6,8 @@ import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
-import Stats from "stats.js";
+
+import Stats from 'stats.js';
 import type {
   ModelInfo,
   SceneConfig,
@@ -248,15 +249,23 @@ export class ThreeScene {
   }
 
   private createStats() {
-    this.stats = new Stats();
-    this.stats.showPanel(0); // FPS
-    // this.stats.showPanel(1); // MS
-    // this.stats.showPanel(2); // MB
-    this.stats.dom.style.position = "absolute";
-    this.stats.dom.style.top = "0px";
-    this.stats.dom.style.left = "0px";
-    this.stats.dom.style.zIndex = "9999";
-    this.container.appendChild(this.stats.dom);
+    try {
+      this.stats = new Stats();
+      this.stats.showPanel(0); // FPS
+      this.stats.dom.style.position = "absolute";
+      this.stats.dom.style.top = "0px";
+      this.stats.dom.style.left = "0px";
+      this.stats.dom.style.zIndex = "9999";
+      this.container.appendChild(this.stats.dom);
+    } catch (error) {
+      console.warn('创建Stats实例失败:', error);
+      // 创建备用对象以避免后续调用错误
+      this.stats = {
+        begin: () => {},
+        end: () => {},
+        dom: document.createElement('div')
+      } as any;
+    }
   }
 
   private setupLoaders() {
@@ -531,6 +540,9 @@ export class ThreeScene {
             const gltf = await this.loadGLTF(fileUrl);
             console.log(gltf, "gltf");
             object = gltf.scene;
+            
+            // 恢复GLTF中的userData（从extras中恢复）
+            this.restoreUserDataFromExtras(object);
           } else if (fileName.endsWith(".obj")) {
             object = await this.loadOBJ(fileUrl);
           } else if (fileName.endsWith(".fbx")) {
@@ -546,11 +558,18 @@ export class ThreeScene {
           const box = new THREE.Box3().setFromObject(object);
           const size = box.getSize(new THREE.Vector3()).length();
 
-          // 创建模型信息
+          // 创建模型信息，使用文件名作为ID
+          let baseId = file.name.replace(/\.[^/.]+$/, ""); // 使用文件名（不含扩展名）作为基础ID
+          let modelId = baseId;
+          let counter = 1;
+          // 确保ID唯一性
+          while (this.models.has(modelId)) {
+            modelId = `${baseId}_${counter}`;
+            counter++;
+          }
+
           const modelInfo: ModelInfo = {
-            id: `model_${Date.now()}_${Math.random()
-              .toString(36)
-              .substr(2, 9)}`,
+            id: modelId,
             name: file.name,
             object,
             originalSize: size,
@@ -563,6 +582,7 @@ export class ThreeScene {
             children: [],
             nodeType: "root",
             depth: 0,
+            userData: object.userData || {}, // 保存userData
           };
 
           // 解析子节点
@@ -742,6 +762,7 @@ export class ThreeScene {
           parent: parentInfo,
           nodeType: this.getNodeType(child),
           depth: parentInfo.depth + 1,
+          userData: parentInfo.userData, // 子节点使用根对象的userData
         };
 
         parentInfo.children.push(childInfo);
@@ -772,6 +793,24 @@ export class ThreeScene {
       return "Group";
     } else {
       return "Object3D";
+    }
+  }
+
+  /**
+   * 从GLTF的extras中恢复userData
+   * GLTF导出时将userData存储在extras字段中，加载时需要还原
+   * 直接将解析到的userData赋值给gltf.scene.userData
+   */
+  private restoreUserDataFromExtras(object: THREE.Object3D): void {
+    // 直接将userData赋值给根对象（gltf.scene）
+    if (object.userData && object.userData.extras) {
+      // 将extras中的数据直接赋值给对象的userData
+      const extrasData = object.userData.extras;
+      object.userData = { ...extrasData };
+      console.log('已恢复userData到gltf.scene:', object.name || '未命名对象', object.userData);
+    } else if (object.userData && Object.keys(object.userData).length > 0) {
+      // 如果对象已有userData但没有extras结构，直接使用现有数据
+      console.log('使用现有userData:', object.name || '未命名对象', object.userData);
     }
   }
 
@@ -885,6 +924,9 @@ export class ThreeScene {
       // 使用平滑动画移动相机
       this.animateCameraTo(targetPosition, center, 800); // 0.8秒动画
 
+      // 设置选中对象
+      this.selectedObject = model.object;
+      
       // 将TransformControls附加到选中的模型
       this.attachTransformControls(modelId);
     }
@@ -1034,16 +1076,50 @@ export class ThreeScene {
   } | null {
     if (!this.selectedObject) return null;
 
-    return {
+    const info = {
       name: this.selectedObject.name || "未命名对象",
       type: this.selectedObject.type,
-      modelId: undefined, // 暂时简化，后续可以扩展
+    };
+
+    // 查找对应的模型ID
+    let modelId: string | undefined;
+    for (const [id, model] of this.models) {
+      if (
+        model.object === this.selectedObject ||
+        model.object.children.includes(this.selectedObject) ||
+        this.selectedObject.parent === model.object
+      ) {
+        modelId = id;
+        break;
+      }
+    }
+
+    return {
+      ...info,
+      modelId,
     };
   }
 
   // userData 相关方法
   getSelectedObjectUserData(): Record<string, any> | null {
     if (!this.selectedObject) return null;
+
+    // 查找对应的模型ID
+    let modelId: string | undefined;
+    for (const [id, model] of this.models) {
+      if (
+        model.object === this.selectedObject ||
+        model.object.children.includes(this.selectedObject) ||
+        this.selectedObject.parent === model.object
+      ) {
+        modelId = id;
+        break;
+      }
+    }
+
+    if (modelId) {
+      return this.getModelUserData(modelId) || {};
+    }
     return this.selectedObject.userData || {};
   }
 
@@ -1055,6 +1131,28 @@ export class ThreeScene {
 
   updateSelectedObjectUserData(key: string, value: any): boolean {
     if (!this.selectedObject) return false;
+    
+    // 查找对应的模型ID
+    let modelId: string | undefined;
+    for (const [id, model] of this.models) {
+      if (
+        model.object === this.selectedObject ||
+        model.object.children.includes(this.selectedObject) ||
+        this.selectedObject.parent === model.object
+      ) {
+        modelId = id;
+        break;
+      }
+    }
+
+    if (modelId) {
+      const currentUserData = this.getModelUserData(modelId) || {};
+      currentUserData[key] = value;
+      this.updateModelUserData(modelId, currentUserData);
+      return true;
+    }
+    
+    // 如果没有找到对应的模型，直接更新对象的userData
     if (!this.selectedObject.userData) {
       this.selectedObject.userData = {};
     }
@@ -1063,13 +1161,57 @@ export class ThreeScene {
   }
 
   removeSelectedObjectUserData(key: string): boolean {
-    if (!this.selectedObject || !this.selectedObject.userData) return false;
-    delete this.selectedObject.userData[key];
+    if (!this.selectedObject) return false;
+    
+    // 查找对应的模型ID
+    let modelId: string | undefined;
+    for (const [id, model] of this.models) {
+      if (
+        model.object === this.selectedObject ||
+        model.object.children.includes(this.selectedObject) ||
+        this.selectedObject.parent === model.object
+      ) {
+        modelId = id;
+        break;
+      }
+    }
+
+    if (modelId) {
+      const currentUserData = this.getModelUserData(modelId) || {};
+      delete currentUserData[key];
+      this.updateModelUserData(modelId, currentUserData);
+      return true;
+    }
+    
+    // 如果没有找到对应的模型，直接删除对象的userData中的键
+    if (this.selectedObject.userData) {
+      delete this.selectedObject.userData[key];
+    }
     return true;
   }
 
   clearSelectedObjectUserData(): boolean {
     if (!this.selectedObject) return false;
+    
+    // 查找对应的模型ID
+    let modelId: string | undefined;
+    for (const [id, model] of this.models) {
+      if (
+        model.object === this.selectedObject ||
+        model.object.children.includes(this.selectedObject) ||
+        this.selectedObject.parent === model.object
+      ) {
+        modelId = id;
+        break;
+      }
+    }
+
+    if (modelId) {
+      this.updateModelUserData(modelId, {});
+      return true;
+    }
+    
+    // 如果没有找到对应的模型，直接清空对象的userData
     this.selectedObject.userData = {};
     return true;
   }
@@ -1363,10 +1505,74 @@ export class ThreeScene {
   }
 
   /**
+   * 更新模型的用户数据
+   */
+  updateModelUserData(modelId: string, userData: Record<string, any>): void {
+    const model = this.models.get(modelId);
+    if (model && model.object) {
+      console.log('更新模型用户数据:', modelId, userData);
+      
+      // 更新模型信息中的用户数据
+      model.userData = { ...userData };
+      
+      // 更新Three.js对象的userData
+      model.object.userData = { ...userData };
+      
+      // 递归更新所有子对象的userData
+      model.object.traverse((child) => {
+        if (child !== model.object) {
+          child.userData = { ...userData };
+        }
+      });
+      
+      console.log('模型用户数据已更新:', model.name, model.userData);
+    } else {
+      console.warn('未找到模型或模型对象:', modelId);
+    }
+  }
+
+  /**
+   * 获取模型的用户数据
+   */
+  getModelUserData(modelId: string): Record<string, any> | null {
+    const model = this.models.get(modelId);
+    if (model) {
+      return model.userData || model.object.userData || {};
+    }
+    return null;
+  }
+
+  /**
+   * 为导出准备场景，包含userData到extras的转换
+   * 直接将userData存储在gltf.scene.userData中
+   */
+  private prepareSceneForExport(originalScene: THREE.Scene): THREE.Scene {
+    // 创建场景的深拷贝
+    const scene = originalScene.clone(true);
+    
+    // 处理根对象的userData
+    scene.traverse((object) => {
+      // 只处理根级别的对象（通常是gltf.scene）
+      if (object.parent === scene && object.userData && Object.keys(object.userData).length > 0) {
+        // 将userData转换为GLTF标准的extras字段
+        object.userData = {
+          extras: { ...object.userData }
+        };
+        console.log('为导出准备userData:', object.name || '未命名对象', object.userData);
+      }
+    });
+    
+    return scene;
+  }
+
+  /**
    * 执行实际的导出操作
    */
-  private async performExport(scene: THREE.Scene, options: ExportOptions): Promise<ArrayBuffer | object> {
+  private async performExport(originalScene: THREE.Scene, options: ExportOptions): Promise<ArrayBuffer | object> {
     return new Promise((resolve, reject) => {
+      // 准备场景，包含userData到extras的转换
+      const scene = this.prepareSceneForExport(originalScene);
+      
       const exportOptions = {
         binary: options.format === 'glb' || options.binary,
         includeCustomExtensions: options.includeCustomMaterials,
